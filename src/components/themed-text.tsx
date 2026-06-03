@@ -15,6 +15,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
     <Text
       style={[
         { color: theme[themeColor ?? 'text'] },
+        { fontFamily: 'PlusJakartaSans_500Medium' },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
         type === 'small' && styles.small,
@@ -34,36 +35,38 @@ const styles = StyleSheet.create({
   small: {
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 500,
+    fontFamily: 'PlusJakartaSans_500Medium',
   },
   smallBold: {
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 700,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: 500,
+    fontFamily: 'PlusJakartaSans_500Medium',
   },
   title: {
     fontSize: 48,
-    fontWeight: 600,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
     lineHeight: 52,
   },
   subtitle: {
     fontSize: 32,
     lineHeight: 44,
-    fontWeight: 600,
+    fontFamily: 'PlusJakartaSans_700Bold',
   },
   link: {
     lineHeight: 30,
     fontSize: 14,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
   },
   linkPrimary: {
     lineHeight: 30,
     fontSize: 14,
     color: '#3c87f7',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
   },
   code: {
     fontFamily: Fonts.mono,

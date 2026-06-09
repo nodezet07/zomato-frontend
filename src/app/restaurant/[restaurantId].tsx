@@ -28,7 +28,11 @@ import { useMenuByRestaurantQuery, useCombosByRestaurantQuery } from '@/hooks/qu
 import { useRestaurantByIdQuery } from '@/hooks/queries/restaurants';
 import { useCouponsByRestaurantQuery } from '@/hooks/queries/coupons';
 import { FavoriteHeart } from '@/components/favorite-heart';
+import { FloatingCartBar } from '@/components/floating-cart-bar';
 import { useRestaurantReviewsQuery } from '@/hooks/queries/reviews';
+import { useCart } from '@/hooks/use-cart';
+import { getCartDisplayTotal, getCartItemCount, getCartRestaurantName } from '@/lib/cartDisplay';
+import { toast } from '@/lib/toast';
 
 function FoodTypeBadge({ type }: { type?: string }) {
   if (type === 'veg') {
@@ -90,6 +94,10 @@ export default function RestaurantDetailScreen() {
   const coupons: Coupon[] = (couponsQ.data?.coupons ?? []) as Coupon[];
   const couponCount: number = couponsQ.data?.count ?? 0;
   const error = (restaurantQ.error as any)?.message ?? (menuQ.error as any)?.message ?? (combosQ.error as any)?.message ?? null;
+  const { cart } = useCart();
+  const cartCount = getCartItemCount(cart);
+  const cartTotal = getCartDisplayTotal(cart);
+  const cartRestaurantName = getCartRestaurantName(cart) ?? restaurant?.restaurantName;
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,10 +189,10 @@ export default function RestaurantDetailScreen() {
         quantity: 1,
       });
       await qc.invalidateQueries({ queryKey: cartKeys.all });
-      Alert.alert('Added to Cart', `${item.itemName} has been added to your cart.`);
+      toast.success(`${item.itemName} added to cart`, 'Added');
     } catch (e: any) {
       const msg = e?.message ?? 'Failed to add item to cart';
-      Alert.alert('Error', String(msg));
+      toast.error(String(msg));
     }
   };
 
@@ -243,10 +251,10 @@ export default function RestaurantDetailScreen() {
       });
       await qc.invalidateQueries({ queryKey: cartKeys.all });
       setCustomizingItem(null);
-      Alert.alert('Added to Cart', `${customizingItem.itemName} has been added to your cart.`);
+      toast.success(`${customizingItem.itemName} added to cart`, 'Added');
     } catch (e: any) {
       const msg = e?.message ?? 'Failed to add item to cart';
-      Alert.alert('Error', String(msg));
+      toast.error(String(msg));
     }
   };
 
@@ -327,7 +335,7 @@ export default function RestaurantDetailScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: Spacing.six }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: cartCount > 0 ? 100 : Spacing.six }}>
           <View style={[styles.sheet, { backgroundColor: theme.background }]}>
             {busy ? (
               <ThemedText themeColor="textSecondary" style={{ textAlign: 'center', marginTop: 32 }}>Loading…</ThemedText>
@@ -1041,7 +1049,7 @@ export default function RestaurantDetailScreen() {
                         <Pressable
                           onPress={() => {
                             Clipboard.setString(coupon.couponCode);
-                            Alert.alert('Copied!', `Code "${coupon.couponCode}" copied to clipboard`);
+                            toast.success(`Code "${coupon.couponCode}" copied`, 'Copied');
                           }}
                           style={styles.copyBtn}
                         >
@@ -1082,6 +1090,15 @@ export default function RestaurantDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <FloatingCartBar
+        visible={cartCount > 0}
+        itemCount={cartCount}
+        total={cartTotal}
+        restaurantName={cartRestaurantName}
+        onPress={() => router.push('/cart')}
+        bottom={20}
+      />
     </ThemedView>
   );
 }

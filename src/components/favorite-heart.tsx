@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/use-theme';
 import { useToggleFavoriteMutation } from '@/hooks/queries/favorites';
 import { useFavoritesStore } from '@/stores/favoritesStore';
+import { toast } from '@/lib/toast';
 
 type Props = {
   restaurantId: string;
@@ -24,7 +25,15 @@ export function FavoriteHeart({ restaurantId, style, size = 22, variant = 'overl
     toggleLocal(restaurantId);
     toggle.mutate(
       { restaurantId, has: had },
-      { onError: () => toggleLocal(restaurantId) },
+      {
+        onSuccess: () => {
+          toast.success(had ? 'Removed from favorites' : 'Saved to favorites', had ? 'Removed' : 'Saved');
+        },
+        onError: () => {
+          toggleLocal(restaurantId);
+          toast.error('Could not update favorites');
+        },
+      },
     );
   };
 

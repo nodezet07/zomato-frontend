@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { SafeGradient } from '@/components/safe-gradient';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -24,6 +24,7 @@ import {
   useUpdateAddressMutation,
   useDeleteAccountMutation,
 } from '@/hooks/queries/profile';
+import { V1_WALLET_ENABLED } from '@/config/features';
 
 export default function ProfileScreen() {
   const theme = useTheme();
@@ -103,7 +104,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
           {/* Top Profile Header Card */}
-          <LinearGradient
+          <SafeGradient
             colors={[theme.backgroundSelected, theme.backgroundElement]}
             style={[styles.profileHeaderCard, { borderColor: theme.backgroundSelected }]}
           >
@@ -131,43 +132,59 @@ export default function ProfileScreen() {
             </View>
 
             {/* QuickBite Gold Badge */}
-            <LinearGradient
+            <SafeGradient
               colors={['#ff5a00', '#ff0055']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
               style={styles.goldBadge}
             >
               <Ionicons name="sparkles" size={12} color="#ffffff" />
               <ThemedText style={styles.goldBadgeText}>QuickBite Gold Member</ThemedText>
-            </LinearGradient>
-          </LinearGradient>
+            </SafeGradient>
+          </SafeGradient>
 
-          {/* Quick Balance Section */}
+          {/* Quick actions */}
           <View style={[styles.balanceCard, { backgroundColor: theme.backgroundElement }]}>
-            <Pressable onPress={() => router.push('/wallet')} style={styles.balanceItem}>
-              <Ionicons name="wallet-outline" size={20} color={theme.primary} />
-              <View>
-                <ThemedText style={[styles.balanceLabel, { color: theme.textSecondary }]}>
-                  Wallet Balance
-                </ThemedText>
-                <ThemedText style={styles.balanceValue}>
-                  ₹{user?.walletBalance ?? 0}
-                </ThemedText>
-              </View>
-            </Pressable>
-            <View style={[styles.cardDividerVertical, { backgroundColor: theme.backgroundSelected }]} />
+            {V1_WALLET_ENABLED ? (
+              <>
+                <Pressable onPress={() => router.push('/wallet')} style={styles.balanceItem}>
+                  <Ionicons name="wallet-outline" size={20} color={theme.primary} />
+                  <View>
+                    <ThemedText style={[styles.balanceLabel, { color: theme.textSecondary }]}>
+                      Wallet Balance
+                    </ThemedText>
+                    <ThemedText style={styles.balanceValue}>
+                      ₹{user?.walletBalance ?? 0}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+                <View style={[styles.cardDividerVertical, { backgroundColor: theme.backgroundSelected }]} />
+              </>
+            ) : null}
             <Pressable
               onPress={() => router.push('/(tabs)/orders')}
-              style={styles.balanceItem}
+              style={[styles.balanceItem, !V1_WALLET_ENABLED && { flex: 1 }]}
             >
               <Ionicons name="receipt-outline" size={20} color={theme.primary} />
               <View>
                 <ThemedText style={[styles.balanceLabel, { color: theme.textSecondary }]}>
-                  Total Orders
+                  My Orders
                 </ThemedText>
-                <ThemedText style={styles.balanceValue}>History ›</ThemedText>
+                <ThemedText style={styles.balanceValue}>View history ›</ThemedText>
               </View>
             </Pressable>
+            {!V1_WALLET_ENABLED ? (
+              <>
+                <View style={[styles.cardDividerVertical, { backgroundColor: theme.backgroundSelected }]} />
+                <Pressable onPress={() => router.push('/coupons')} style={[styles.balanceItem, { flex: 1 }]}>
+                  <Ionicons name="pricetag-outline" size={20} color={theme.primary} />
+                  <View>
+                    <ThemedText style={[styles.balanceLabel, { color: theme.textSecondary }]}>
+                      Offers
+                    </ThemedText>
+                    <ThemedText style={styles.balanceValue}>Coupons ›</ThemedText>
+                  </View>
+                </Pressable>
+              </>
+            ) : null}
           </View>
 
           {/* Addresses Accordion */}
@@ -213,14 +230,12 @@ export default function ProfileScreen() {
                         <View style={styles.addrHeader}>
                           <ThemedText style={styles.addrLabel}>{a.label}</ThemedText>
                           {a.isDefault && (
-                            <LinearGradient
+                            <SafeGradient
                               colors={['#ff5a00', '#ff8a00']}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 0 }}
                               style={styles.defaultBadge}
                             >
                               <ThemedText style={styles.defaultBadgeText}>DEFAULT</ThemedText>
-                            </LinearGradient>
+                            </SafeGradient>
                           )}
                         </View>
                         <ThemedText numberOfLines={2} style={[styles.addrText, { color: theme.textSecondary }]}>
@@ -319,16 +334,18 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
             </Pressable>
 
-            <Pressable
-              onPress={() => router.push('/wallet')}
-              style={[styles.optionRow, { borderBottomColor: theme.backgroundSelected }]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Ionicons name="card-outline" size={18} color={theme.textSecondary} />
-                <ThemedText style={styles.optionText}>Wallet</ThemedText>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-            </Pressable>
+            {V1_WALLET_ENABLED ? (
+              <Pressable
+                onPress={() => router.push('/wallet')}
+                style={[styles.optionRow, { borderBottomColor: theme.backgroundSelected }]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Ionicons name="card-outline" size={18} color={theme.textSecondary} />
+                  <ThemedText style={styles.optionText}>Wallet</ThemedText>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+              </Pressable>
+            ) : null}
 
             <Pressable
               onPress={() => router.push('/support')}

@@ -11,8 +11,9 @@ import { useTheme } from '@/hooks/use-theme';
 export default function OrderSuccessScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+  const { orderId, payment } = useLocalSearchParams<{ orderId?: string; payment?: string }>();
   const id = orderId ?? '';
+  const paidOnline = payment === 'ONLINE';
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -24,10 +25,12 @@ export default function OrderSuccessScreen() {
         </View>
 
         <ThemedText type="subtitle" style={styles.title}>
-          Order placed!
+          {paidOnline ? 'Payment successful!' : 'Order placed!'}
         </ThemedText>
         <ThemedText themeColor="textSecondary" style={styles.subtitle}>
-          Your food is being prepared. You can track delivery status anytime.
+          {paidOnline
+            ? 'Your payment was confirmed. The restaurant will start preparing your order.'
+            : 'Your food is being prepared. You can track delivery status anytime.'}
         </ThemedText>
 
         {id ? (

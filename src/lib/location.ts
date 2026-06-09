@@ -23,7 +23,7 @@ export async function ensureForegroundPermission(): Promise<'granted' | 'denied'
   const Location = await getExpoLocation();
   if (!Location) return 'unavailable';
   const current = await Location.getForegroundPermissionsAsync();
-  if (current.status === 'undetermined') {
+  if (current.status !== 'granted') {
     const requested = await Location.requestForegroundPermissionsAsync();
     return requested.status;
   }

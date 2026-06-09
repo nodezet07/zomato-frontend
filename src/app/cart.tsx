@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { SafeGradient } from '@/components/safe-gradient';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { ThemedText } from '@/components/themed-text';
@@ -21,6 +21,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/hooks/use-cart';
+import { toast } from '@/lib/toast';
 import {
   cartKeys,
   useApplyCouponMutation,
@@ -33,6 +34,7 @@ import {
 } from '@/hooks/queries/cart';
 import { fetchMenuItemsByRestaurant, type MenuItem } from '@/services/menu';
 import { storageGetItem, storageSetItem } from '@/lib/storage';
+import { V1_WALLET_ENABLED } from '@/config/features';
 
 type PaymentMethod = 'COD' | 'ONLINE';
 
@@ -44,7 +46,7 @@ function getDeliveryTimeLabel(restaurant?: { averageDeliveryTime?: number }) {
   }
   return '15-20 mins';
 }
-
+                               
 export default function CartScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -59,14 +61,14 @@ export default function CartScreen() {
   const addToCartMut = useAddToCartMutation();
   const updatePrefs = useUpdateCartPreferencesMutation();
 
-  const [couponCode, setCouponCode] = useState('');
+  const [couponCode, setCouponCode] = useState('');                       
   const [note, setNote] = useState('');
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noCutlery, setNoCutlery] = useState(true);
   const [recommendations, setRecommendations] = useState<MenuItem[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
-
+                                                                                   
   const mutating =
     updateLine.isPending ||
     removeLine.isPending ||
@@ -150,9 +152,9 @@ export default function CartScreen() {
         quantity: 1,
         addons: [],
       });
-      Alert.alert('Added', `Added ${item.itemName} to your cart.`);
+      toast.success(`Added ${item.itemName}`, 'Added to cart');
     } catch (e: any) {
-      Alert.alert('Oops', e?.response?.data?.message ?? e?.message ?? 'Failed to add item');
+      toast.error(e?.response?.data?.message ?? e?.message ?? 'Failed to add item');
     }
   };
 
@@ -265,16 +267,14 @@ export default function CartScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
           {/* Gold Savings Banner */}
           {goldDiscount > 0 && (
-            <LinearGradient
+            <SafeGradient
               colors={['#ff5a00', '#ff0055']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
               style={styles.goldSavingsBanner}
             >
               <ThemedText style={styles.goldSavingsText}>
                 🥳 You saved <ThemedText style={{ color: '#ffffff', fontFamily: 'PlusJakartaSans_800ExtraBold' }}>₹{goldDiscount}</ThemedText> with QuickBite Gold
               </ThemedText>
-            </LinearGradient>
+            </SafeGradient>
           )}
 
           {/* Special Offer Card */}
@@ -292,7 +292,7 @@ export default function CartScreen() {
                 <ThemedText style={[styles.offerPromoText, { color: theme.text }]}>
                   Get ₹1000 OFF when you shop offline & pay via District app
                 </ThemedText>
-                <Pressable onPress={() => Alert.alert('District App', 'Voucher details will be shared after order placement.')}>
+                <Pressable onPress={() => toast.info('Voucher details shared after order placement', 'District')}>
                   <ThemedText style={styles.claimLink}>Claim voucher after order is placed</ThemedText>
                 </Pressable>
               </View>
@@ -348,7 +348,10 @@ export default function CartScreen() {
                               {
                                 text: 'Remove',
                                 style: 'destructive',
-                                onPress: () => removeLine.mutateAsync({ itemId: it._id }),
+                                onPress: async () => {
+                                  await removeLine.mutateAsync({ itemId: it._id });
+                                  toast.info(`${it.itemName} removed from cart`);
+                                },
                               },
                             ]);
                           } else {
@@ -540,7 +543,10 @@ export default function CartScreen() {
               {appliedCoupon ? (
                 <Pressable
                   disabled={mutating}
-                  onPress={() => removeCoupon.mutateAsync()}
+                  onPress={async () => {
+                    await removeCoupon.mutateAsync();
+                    toast.info('Coupon removed');
+                  }}
                   style={styles.applyButton}
                 >
                   <ThemedText style={[styles.applyButtonText, { color: theme.primary }]}>
@@ -563,10 +569,11 @@ export default function CartScreen() {
                       try {
                         await apply.mutateAsync({ couponCode: couponCode.trim() });
                         setCouponCode('');
+                        toast.success('Coupon applied successfully', 'Saved');
                       } catch (e: any) {
-                        Alert.alert(
+                        toast.error(
+                          e?.response?.data?.message ?? e?.message ?? 'Failed to apply coupon',
                           'Coupon',
-                          e?.response?.data?.message ?? e?.message ?? 'Failed to apply coupon'
                         );
                       }
                     }}
@@ -580,24 +587,25 @@ export default function CartScreen() {
           </View>
 
 
-          {/* QuickBite Money */}
-          <Pressable
-            onPress={() => Alert.alert('QuickBite Money', 'Single tap payments and instant refunds.')}
-            style={[styles.zomatoMoneyCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
-          >
-            <View style={styles.zomatoMoneyLeft}>
-              <View style={[styles.moneyIconCircle, { backgroundColor: theme.backgroundSelected }]}>
-                <Ionicons name="wallet-outline" size={18} color={theme.primary} />
+          {V1_WALLET_ENABLED ? (
+            <Pressable
+              onPress={() => toast.info('Single tap payments and instant refunds', 'QuickBite Money')}
+              style={[styles.zomatoMoneyCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
+            >
+              <View style={styles.zomatoMoneyLeft}>
+                <View style={[styles.moneyIconCircle, { backgroundColor: theme.backgroundSelected }]}>
+                  <Ionicons name="wallet-outline" size={18} color={theme.primary} />
+                </View>
+                <View>
+                  <ThemedText style={[styles.zomatoMoneyTitle, { color: theme.text }]}>QuickBite Money</ThemedText>
+                  <ThemedText style={[styles.zomatoMoneySub, { color: theme.textSecondary }]}>
+                    Single tap payments. Zero failures
+                  </ThemedText>
+                </View>
               </View>
-              <View>
-                <ThemedText style={[styles.zomatoMoneyTitle, { color: theme.text }]}>QuickBite Money</ThemedText>
-                <ThemedText style={[styles.zomatoMoneySub, { color: theme.textSecondary }]}>
-                  Single tap payments. Zero failures
-                </ThemedText>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-          </Pressable>
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            </Pressable>
+          ) : null}
 
           {/* Price Breakdown Bill Details */}
           <View style={[styles.billDetailsCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
@@ -659,11 +667,9 @@ export default function CartScreen() {
             }}
             style={styles.placeOrderBtn}
           >
-            <LinearGradient
+            <SafeGradient
               colors={[theme.primary, theme.primaryDark]}
               style={styles.placeOrderGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
             >
               <View style={{ alignItems: 'flex-start' }}>
                 <ThemedText style={styles.btnTotalText}>₹{grandTotal}</ThemedText>
@@ -673,7 +679,7 @@ export default function CartScreen() {
                 <ThemedText style={styles.placeOrderText}>Proceed to Checkout</ThemedText>
                 <Ionicons name="caret-forward" size={14} color="#ffffff" />
               </View>
-            </LinearGradient>
+            </SafeGradient>
           </Pressable>
         </View>
       </SafeAreaView>

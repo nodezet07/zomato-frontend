@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { createReview } from '@/services/reviews';
+import { toast } from '@/lib/toast';
 
 export default function RateOrderScreen() {
   const theme = useTheme();
@@ -22,7 +23,7 @@ export default function RateOrderScreen() {
   const m = useMutation({
     mutationFn: createReview,
     onSuccess: () => {
-      Alert.alert('Thanks!', 'Review submitted.');
+      toast.success('Thanks for your feedback!', 'Review submitted');
       router.replace('/(tabs)/orders');
     },
   });

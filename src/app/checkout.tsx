@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, TextInput, View, ScrollView, Platform } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { SafeGradient } from '@/components/safe-gradient';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -12,10 +12,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/hooks/use-cart';
 import { useCartQuery } from '@/hooks/queries/cart';
 import { useProfileQuery } from '@/hooks/queries/profile';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { createOrder } from '@/services/orders';
 import type { Address } from '@/services/profile';
 import { storageGetItem, storageSetItem } from '@/lib/storage';
+import { cartKeys } from '@/hooks/queries/cart';
+import { toast } from '@/lib/toast';
 
 export default function CheckoutScreen() {
   const theme = useTheme();
@@ -60,29 +62,52 @@ export default function CheckoutScreen() {
     await storageSetItem('paymentMethod', method);
   };
 
-  const placeOrderMutation = useMutation({
-    mutationFn: createOrder,
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['cart'] });
-      await cartQuery.refetch();
-      router.replace('/(tabs)/orders');
-    },
-  });
+  async function finishCheckout(orderId: string) {
+    await qc.invalidateQueries({ queryKey: ['cart'] });
+    await qc.invalidateQueries({ queryKey: cartKeys.all });
+    await cartQuery.refetch();
+    toast.success('Your order has been placed', 'Order placed');
+    router.replace({
+      pathname: '/order-success',
+      params: { orderId, payment: paymentMethod },
+    });
+  }
 
   async function placeOrder() {
     if (!addressId) {
-      Alert.alert('Address', 'Please select a delivery address.');
+      toast.warning('Please select a delivery address', 'Address required');
       return;
     }
     try {
       setBusy(true);
-      await placeOrderMutation.mutateAsync({
+      const order = await createOrder({
         deliveryAddressId: addressId,
         paymentMethod,
         deliveryInstructions: instructions.trim() || undefined,
       });
+
+      const orderId = String(order?._id ?? '');
+      if (!orderId) {
+        throw new Error('Order was created but no order id was returned.');
+      }
+
+      if (paymentMethod === 'ONLINE') {
+        router.push({
+          pathname: '/payment/razorpay',
+          params: {
+            orderId,
+            restaurantName: restaurant?.restaurantName ?? '',
+          },
+        });
+        return;
+      }
+
+      await finishCheckout(orderId);
     } catch (e: any) {
-      Alert.alert('Order', e?.response?.data?.message ?? e?.message ?? 'Failed to place order');
+      const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to place order';
+      if (msg !== 'Payment cancelled') {
+        toast.error(msg, 'Order failed');
+      }
     } finally {
       setBusy(false);
     }
@@ -270,17 +295,21 @@ export default function CheckoutScreen() {
             onPress={placeOrder} 
             style={styles.bottomBarBtn}
           >
-            <LinearGradient
+            <SafeGradient
               colors={[theme.primary, theme.primaryDark]}
               style={styles.btnGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
             >
               <ThemedText style={styles.bottomBarBtnText}>
-                {busy ? 'Placing order…' : 'Place Order'}
+                {busy
+                  ? paymentMethod === 'ONLINE'
+                    ? 'Processing payment…'
+                    : 'Placing order…'
+                  : paymentMethod === 'ONLINE'
+                    ? 'Pay & Place Order'
+                    : 'Place Order'}
               </ThemedText>
               <Ionicons name="caret-forward" size={14} color="#ffffff" />
-            </LinearGradient>
+            </SafeGradient>
           </Pressable>
         </View>
       </SafeAreaView>

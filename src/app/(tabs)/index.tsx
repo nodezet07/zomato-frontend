@@ -32,6 +32,8 @@ import { useFilterStore } from '@/lib/filterStore';
 import { apiFetch } from '@/lib/apiFetch';
 import { useProfileQuery } from '@/hooks/queries/profile';
 import { FavoriteHeart } from '@/components/favorite-heart';
+import { FloatingCartBar } from '@/components/floating-cart-bar';
+import { getCartDisplayTotal, getCartItemCount, getCartRestaurantName } from '@/lib/cartDisplay';
 
 const CATEGORIES = [
   { name: 'All', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&auto=format&fit=crop&q=80' },
@@ -74,8 +76,15 @@ const RestaurantItem = memo(({ item, index, theme, onPress }: RestaurantItemProp
   const hasDiscount = index % 3 !== 2;
   const ratingColor = rating >= 4.0 ? '#24963F' : (rating >= 3.0 ? '#9ACD32' : '#8A8D91');
 
+  const priceForTwo = (item.minimumOrderAmount && item.minimumOrderAmount > 0)
+    ? item.minimumOrderAmount
+    : 200;
+
   return (
-    <Pressable onPress={onPress}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => (pressed ? { opacity: 0.94, transform: [{ scale: 0.992 }] } : undefined)}
+    >
       <ThemedView type="backgroundElement" style={styles.rCard}>
         {/* Restaurant Food Banner */}
         <ImageBackground
@@ -128,7 +137,7 @@ const RestaurantItem = memo(({ item, index, theme, onPress }: RestaurantItemProp
 
           <View style={styles.rPriceRow}>
             <Text style={[styles.rPriceText, { color: theme.textSecondary }]}>
-              ₹{item.minimumOrderAmount ?? 100} for two
+              ₹{priceForTwo} for two
             </Text>
           </View>
 
@@ -255,10 +264,9 @@ export default function HomeScreen() {
   }, [showFiltersModal, fadeAnim, slideAnim]);
 
 
-  const cartCount = useMemo(
-    () => cart?.items?.reduce((sum, it) => sum + (it.quantity ?? 0), 0) ?? 0,
-    [cart]
-  );
+  const cartCount = useMemo(() => getCartItemCount(cart), [cart]);
+  const cartTotal = useMemo(() => getCartDisplayTotal(cart), [cart]);
+  const cartRestaurantName = useMemo(() => getCartRestaurantName(cart), [cart]);
 
   // Debounce search query
   useEffect(() => {
@@ -947,22 +955,13 @@ export default function HomeScreen() {
           </View>
         </Modal>
 
-        {/* Sticky Cart Action bar */}
-        {cartCount > 0 && (
-          <Pressable
-            onPress={() => router.push('/cart')}
-            style={[styles.cartBar, { backgroundColor: theme.text }]}
-            accessibilityRole="button"
-          >
-            <View style={styles.cartLeft}>
-              <View style={[styles.cartCount, { backgroundColor: theme.primary }]}>
-                <Text style={styles.cartCountText}>{cartCount}</Text>
-              </View>
-              <Text style={styles.cartLabel}>View Cart</Text>
-            </View>
-            <Text style={styles.cartTotal}>₹{Number(cart?.total ?? 0).toFixed(0)}</Text>
-          </Pressable>
-        )}
+        <FloatingCartBar
+          visible={cartCount > 0}
+          itemCount={cartCount}
+          total={cartTotal}
+          restaurantName={cartRestaurantName}
+          onPress={() => router.push('/cart')}
+        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -1216,14 +1215,14 @@ const styles = StyleSheet.create({
 
   // Zomato Card Styling
   rCard: {
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(127,127,127,0.08)',
+    borderColor: 'rgba(127,127,127,0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 3,
   },

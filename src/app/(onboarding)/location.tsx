@@ -62,22 +62,7 @@ export default function LocationSetupScreen() {
   // Keep label user-driven only (no effect-driven setState).
 
   useEffect(() => {
-    let cancelled = false;
-    async function ensurePermissionOnEntry() {
-      try {
-        const status = await ensureForegroundPermission();
-        if (cancelled) return;
-        if (__DEV__) console.log('📍 [LOCATION] entry permission status', status);
-      } catch {
-        // ignore (Expo may throw on unsupported environments)
-      } finally {
-        if (!cancelled) setPermissionChecked(true);
-      }
-    }
-    ensurePermissionOnEntry();
-    return () => {
-      cancelled = true;
-    };
+    setPermissionChecked(true);
   }, []);
 
   function formatReverseGeocode(parts: Record<string, unknown>): string {

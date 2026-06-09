@@ -16,7 +16,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },    
+      },
       "predictiveBackGestureEnabled": false,
       "package": "com.herridez.MyApp"
     },
@@ -25,6 +25,19 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false
+          },
+          "ios": {
+            "newArchEnabled": false,
+            "forceStaticLinking": ["Razorpay"]
+          }
+        }
+      ],
       "expo-router",
       "react-native-maps",
       [

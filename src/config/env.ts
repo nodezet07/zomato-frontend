@@ -19,7 +19,7 @@ const PRODUCTION_SOCKET_URL = 'https://example.com';
 
 // Your backend runs on 5000 locally
 const DEFAULT_BACKEND_PORT = 5000;
-const FALLBACK_LAN_HOST = '192.168.1.100';
+const FALLBACK_LAN_HOST = '192.168.1.101';
 
 /** Host where Metro runs (same PC as API in typical dev). */
 function resolveDevHostFromExpo(): string | null {

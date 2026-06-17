@@ -35,6 +35,7 @@ export type Order = {
     longitude: number;
   };
   estimatedDeliveryTime?: string;
+  estimatedPreparationTime?: number;
   createdAt?: string;
 };
 
@@ -61,6 +62,11 @@ export async function fetchOrderById(orderId: string) {
 export async function trackOrder(orderId: string) {
   const body = await apiFetch(`/orders/track/${orderId}`);
   return (body as any)?.data?.tracking ?? (body as any)?.data;
+}
+
+export async function fetchOrderRoute(orderId: string) {
+  const body = await apiFetch(`/orders/track/${orderId}/route`);
+  return (body as any)?.data?.path ?? [];
 }
 
 export async function requestOrderRefund(orderId: string, description: string) {

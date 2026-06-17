@@ -34,6 +34,8 @@ import { useProfileQuery } from '@/hooks/queries/profile';
 import { FavoriteHeart } from '@/components/favorite-heart';
 import { FloatingCartBar } from '@/components/floating-cart-bar';
 import { getCartDisplayTotal, getCartItemCount, getCartRestaurantName } from '@/lib/cartDisplay';
+import { useTabBarHeight } from '@/hooks/use-tab-bar-height';
+import { useUnreadNotificationCount } from '@/hooks/use-unread-notifications';
 
 const CATEGORIES = [
   { name: 'All', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&auto=format&fit=crop&q=80' },
@@ -166,6 +168,7 @@ export default function HomeScreen() {
   const qc = useQueryClient();
   const profileQ = useProfileQuery();
   const user = profileQ.data;
+  const unreadNotifications = useUnreadNotificationCount();
 
   const defaultAddress = useMemo(() => {
     const list = user?.addresses ?? [];
@@ -267,6 +270,9 @@ export default function HomeScreen() {
   const cartCount = useMemo(() => getCartItemCount(cart), [cart]);
   const cartTotal = useMemo(() => getCartDisplayTotal(cart), [cart]);
   const cartRestaurantName = useMemo(() => getCartRestaurantName(cart), [cart]);
+  const tabBarHeight = useTabBarHeight();
+  const listBottomPadding = cartCount > 0 ? tabBarHeight + 88 : tabBarHeight + Spacing.four;
+  const cartBarBottom = tabBarHeight + 12;
 
   // Debounce search query
   useEffect(() => {
@@ -437,7 +443,7 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {!!error && (
           <ThemedView type="backgroundElement" style={styles.errorCard}>
             <ThemedText style={styles.errorText}>{error}</ThemedText>
@@ -453,7 +459,7 @@ export default function HomeScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.4}
-          contentContainerStyle={{ paddingBottom: cartCount > 0 ? 148 : 88 }}
+          contentContainerStyle={{ paddingBottom: listBottomPadding }}
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.loaderFooter}>
@@ -503,9 +509,18 @@ export default function HomeScreen() {
                 </View>
                 
                 {/* Notification Icon */}
-                <Pressable style={[styles.roundIcon, { backgroundColor: theme.backgroundSelected }]}>
-                  <Text style={{ fontSize: 18 }}>🔔</Text>
-                  <View style={styles.dot} />
+                <Pressable
+                  onPress={() => router.push('/notifications')}
+                  style={[styles.roundIcon, { backgroundColor: theme.backgroundSelected }]}
+                >
+                  <Ionicons name="notifications-outline" size={20} color={theme.text} />
+                  {unreadNotifications > 0 ? (
+                    <View style={styles.dot}>
+                      <Text style={styles.dotText}>
+                        {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                      </Text>
+                    </View>
+                  ) : null}
                 </Pressable>
                 
                 {/* User Avatar with Orange Accent Border */}
@@ -954,15 +969,16 @@ export default function HomeScreen() {
             </Animated.View>
           </View>
         </Modal>
-
-        <FloatingCartBar
-          visible={cartCount > 0}
-          itemCount={cartCount}
-          total={cartTotal}
-          restaurantName={cartRestaurantName}
-          onPress={() => router.push('/cart')}
-        />
       </SafeAreaView>
+
+      <FloatingCartBar
+        visible={cartCount > 0}
+        itemCount={cartCount}
+        total={cartTotal}
+        restaurantName={cartRestaurantName}
+        onPress={() => router.push('/cart')}
+        bottom={cartBarBottom}
+      />
     </ThemedView>
   );
 }
@@ -1031,14 +1047,23 @@ const styles = StyleSheet.create({
   },
   dot: {
     position: 'absolute',
-    right: 12,
-    top: 12,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    right: 4,
+    top: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#ff5a00',
     borderWidth: 1.5,
     borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  dotText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    lineHeight: 11,
   },
   avatar: {
     width: 40,

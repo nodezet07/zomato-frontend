@@ -1,36 +1,43 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+
+const TAB_LABEL_FONT = 'PlusJakartaSans_600SemiBold';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const androidBottomInset = Math.max(insets.bottom, 8);
+  const tabBarHeight = Platform.OS === 'ios' ? 50 + insets.bottom : 62 + androidBottomInset;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: theme.backgroundElement,
           borderTopWidth: 1,
-          borderTopColor: scheme === 'dark' ? '#212225' : '#f0f0f0',
-          height: Platform.OS === 'ios' ? 88 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
-          paddingTop: 10,
-          elevation: 8,
-          shadowColor: '#000000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 3,
+          borderTopColor: '#f0f0f0',
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          elevation: 16,
+          height: tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom : androidBottomInset,
+          paddingTop: 8,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
         },
         tabBarLabelStyle: {
-          fontFamily: 'PlusJakartaSans_600SemiBold',
-          fontSize: 11,
-          marginTop: 2,
+          fontSize: 10,
+          fontFamily: TAB_LABEL_FONT,
         },
       }}>
       <Tabs.Screen
@@ -38,12 +45,7 @@ export default function AppTabs() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'home' : 'home-outline'}
-              size={24}
-              color={color}
-              style={{ transform: [{ scale: focused ? 1.05 : 1 }] }}
-            />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -60,12 +62,7 @@ export default function AppTabs() {
         options={{
           title: 'Fav',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'heart' : 'heart-outline'}
-              size={24}
-              color={color}
-              style={{ transform: [{ scale: focused ? 1.05 : 1 }] }}
-            />
+            <Ionicons name={focused ? 'heart' : 'heart-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -75,12 +72,7 @@ export default function AppTabs() {
         options={{
           title: 'Orders',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'receipt' : 'receipt-outline'}
-              size={24}
-              color={color}
-              style={{ transform: [{ scale: focused ? 1.05 : 1 }] }}
-            />
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -90,16 +82,10 @@ export default function AppTabs() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'person' : 'person-outline'}
-              size={24}
-              color={color}
-              style={{ transform: [{ scale: focused ? 1.05 : 1 }] }}
-            />
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={color} />
           ),
         }}
       />
     </Tabs>
   );
 }
-

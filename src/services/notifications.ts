@@ -1,8 +1,21 @@
 import { apiFetch } from '@/lib/apiFetch';
 
-export async function fetchNotifications() {
+export type AppNotification = {
+  _id: string;
+  notificationType: string;
+  title: string;
+  message: string;
+  body?: string;
+  isRead: boolean;
+  sentAt: string;
+  redirectType?: string;
+  redirectId?: string;
+};
+
+export async function fetchNotifications(): Promise<AppNotification[]> {
   const body = await apiFetch('/users/notifications');
-  return (body as any)?.data?.notifications ?? [];
+  const notifications = (body as { data?: { notifications?: AppNotification[] } })?.data?.notifications;
+  return Array.isArray(notifications) ? notifications : [];
 }
 
 export async function markNotificationRead(notificationId: string) {
@@ -13,11 +26,17 @@ export async function markAllNotificationsRead() {
   return apiFetch('/users/notifications/read-all', { method: 'PATCH' });
 }
 
-export async function registerDeviceToken(input: { token: string; platform: 'ios' | 'android' }) {
-  const body = await apiFetch('/notifications/device-token', {
+export async function registerDeviceToken(token: string, platform: 'android' | 'ios' | 'web') {
+  return apiFetch('/notifications/device-token', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ token, platform }),
   });
-  return (body as any)?.data ?? body;
+}
+
+export async function unregisterDeviceToken(token: string) {
+  return apiFetch('/notifications/device-token', {
+    method: 'DELETE',
+    body: JSON.stringify({ token }),
+  });
 }
 

@@ -6,11 +6,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useTheme } from '@/hooks/use-theme';
+import { useTabBarHeight } from '@/hooks/use-tab-bar-height';
 import { useFavoritesQuery, useToggleFavoriteMutation } from '@/hooks/queries/favorites';
 
 export default function FavoritesScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const tabBarHeight = useTabBarHeight();
   const favsQuery = useFavoritesQuery();
   const toggleFavMut = useToggleFavoriteMutation();
   const items = Array.isArray(favsQuery.data) ? favsQuery.data : [];
@@ -38,7 +40,7 @@ export default function FavoritesScreen() {
         <FlatList
           data={items}
           keyExtractor={(r) => String(r._id)}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: tabBarHeight + 16 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl

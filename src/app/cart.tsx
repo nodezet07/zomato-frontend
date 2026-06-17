@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeGradient } from '@/components/safe-gradient';
@@ -51,7 +51,11 @@ export default function CartScreen() {
   const theme = useTheme();
   const router = useRouter();
   const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
   const { cart, loading } = useCart();
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
+  const checkoutBarPaddingBottom = bottomInset + 10;
+  const checkoutBarHeight = 108 + checkoutBarPaddingBottom;
 
   const updateLine = useUpdateCartItemMutation();
   const removeLine = useRemoveCartItemMutation();
@@ -264,7 +268,10 @@ export default function CartScreen() {
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollBody, { paddingBottom: checkoutBarHeight + 16 }]}
+        >
           {/* Gold Savings Banner */}
           {goldDiscount > 0 && (
             <SafeGradient
@@ -649,7 +656,16 @@ export default function CartScreen() {
         </ScrollView>
 
         {/* Bottom Checkout Bar */}
-        <View style={[styles.bottomCheckoutBar, { backgroundColor: theme.backgroundElement, borderTopColor: theme.backgroundSelected }]}>
+        <View
+          style={[
+            styles.bottomCheckoutBar,
+            {
+              backgroundColor: theme.backgroundElement,
+              borderTopColor: theme.backgroundSelected,
+              paddingBottom: checkoutBarPaddingBottom,
+            },
+          ]}
+        >
           <Pressable onPress={selectPaymentMethod} style={styles.paymentMethodSelect}>
             <View>
               <ThemedText style={styles.payUsingLabel}>PAY USING</ThemedText>
@@ -727,7 +743,6 @@ const styles = StyleSheet.create({
   },
   scrollBody: {
     padding: 14,
-    paddingBottom: 110,
     gap: 14,
   },
   // Savings
@@ -1241,7 +1256,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#26282d',
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
   },
   paymentMethodSelect: {
     flexDirection: 'row',

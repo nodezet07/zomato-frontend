@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View, ScrollView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeGradient } from '@/components/safe-gradient';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/hooks/use-cart';
 import { useCartQuery } from '@/hooks/queries/cart';
@@ -22,10 +21,15 @@ import { toast } from '@/lib/toast';
 export default function CheckoutScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { cart } = useCart();
   const qc = useQueryClient();
   const cartQuery = useCartQuery();
   const profileQuery = useProfileQuery();
+
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
+  const bottomBarPaddingBottom = bottomInset + 12;
+  const bottomBarHeight = 76 + bottomBarPaddingBottom;
 
   const [busy, setBusy] = useState(false);
   const addresses = useMemo(
@@ -119,7 +123,7 @@ export default function CheckoutScreen() {
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {/* Top Header Row */}
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
@@ -131,7 +135,10 @@ export default function CheckoutScreen() {
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollBody, { paddingBottom: bottomBarHeight + 16 }]}
+        >
           {/* Restaurant Details */}
           {restaurant && (
             <ThemedView type="backgroundElement" style={styles.restaurantCard}>
@@ -282,8 +289,17 @@ export default function CheckoutScreen() {
           )}
         </ScrollView>
 
-        {/* Sticky Zomato Style Bottom Bar */}
-        <View style={[styles.bottomBar, { backgroundColor: theme.backgroundElement, borderTopColor: theme.backgroundSelected }]}>
+        {/* Sticky bottom bar */}
+        <View
+          style={[
+            styles.bottomBar,
+            {
+              backgroundColor: theme.backgroundElement,
+              borderTopColor: theme.backgroundSelected,
+              paddingBottom: bottomBarPaddingBottom,
+            },
+          ]}
+        >
           <View style={styles.bottomBarLeft}>
             <ThemedText style={styles.bottomBarTotalText}>₹{total}</ThemedText>
             <ThemedText style={[styles.bottomBarPaymentSub, { color: theme.textSecondary }]}>
@@ -345,7 +361,6 @@ const styles = StyleSheet.create({
   },
   scrollBody: {
     padding: 16,
-    paddingBottom: 100,
     gap: 16,
   },
   restaurantCard: {
@@ -483,14 +498,20 @@ const styles = StyleSheet.create({
     right: 0,
     borderTopWidth: 1,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+    paddingTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   bottomBarLeft: {
+    flex: 1,
     flexDirection: 'column',
+    marginRight: 12,
   },
   bottomBarTotalText: {
     fontSize: 16,
@@ -504,18 +525,22 @@ const styles = StyleSheet.create({
   bottomBarBtn: {
     borderRadius: 14,
     overflow: 'hidden',
+    flexShrink: 0,
+    maxWidth: '58%',
   },
   btnGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 20,
-    height: 44,
+    paddingHorizontal: 16,
+    minHeight: 48,
+    paddingVertical: 12,
   },
   bottomBarBtnText: {
     color: '#ffffff',
     fontFamily: 'PlusJakartaSans_800ExtraBold',
     fontSize: 13,
+    flexShrink: 1,
   },
 });

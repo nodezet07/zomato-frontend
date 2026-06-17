@@ -6,7 +6,11 @@ export type OrderTrackingMapProps = {
   customer?: { latitude: number; longitude: number } | null;
   restaurant?: { latitude: number; longitude: number } | null;
   rider?: { latitude: number; longitude: number } | null;
+  riderHeading?: number;
+  routePath?: Array<{ latitude: number; longitude: number }>;
   height?: number;
+  followRider?: boolean;
+  orderStatus?: string;
 };
 
 function hasAnyCoord(props: OrderTrackingMapProps) {

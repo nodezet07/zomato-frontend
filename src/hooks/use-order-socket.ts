@@ -18,6 +18,15 @@ const TRACK_EVENTS = [
 
 function mergeTracking(prev: Record<string, unknown> | undefined, payload: OrderSocketPayload) {
   const riderLocation = payload.riderLocation ?? prev?.riderLocation ?? prev?.liveLocation;
+  const riderFromSocket =
+    payload.riderName || payload.riderMobile
+      ? {
+          fullName: payload.riderName ?? (prev?.rider as any)?.fullName,
+          mobile: payload.riderMobile ?? (prev?.rider as any)?.mobile,
+          riderCode: payload.riderCode ?? (prev?.rider as any)?.riderCode,
+        }
+      : prev?.rider;
+
   return {
     ...prev,
     orderId: payload.orderId ?? prev?.orderId,
@@ -26,6 +35,7 @@ function mergeTracking(prev: Record<string, unknown> | undefined, payload: Order
     status: payload.orderStatus ?? prev?.status,
     paymentStatus: payload.paymentStatus ?? prev?.paymentStatus,
     riderId: payload.riderId ?? prev?.riderId,
+    rider: riderFromSocket,
     riderLocation,
     liveLocation: riderLocation ?? prev?.liveLocation,
     etaMinutes: payload.etaMinutes ?? prev?.etaMinutes,

@@ -3,9 +3,8 @@
  *
  * Development:
  * - EXPO_PUBLIC_API_URL / EXPO_PUBLIC_SOCKET_URL override everything when set.
- * - Otherwise we derive the API host from Metro (expo-constants) so it matches
- *   the machine running the bundler — avoids wrong hardcoded IPs.
- * - Android emulator fallback: 10.0.2.2 (host machine loopback).
+ * - Otherwise we derive the API host from Metro (expo-constants).
+ * - Android emulator uses 10.0.2.2 to reach the host machine.
  */
 
 import Constants from 'expo-constants';
@@ -13,15 +12,26 @@ import { Platform } from 'react-native';
 
 const isProduction = !__DEV__;
 
-// TODO: replace with your real production domain when you deploy
 const PRODUCTION_API_URL = 'https://example.com/api/v1';
 const PRODUCTION_SOCKET_URL = 'https://example.com';
 
-// Your backend runs on 5000 locally
 const DEFAULT_BACKEND_PORT = 5000;
 const FALLBACK_LAN_HOST = '192.168.1.101';
+const ANDROID_EMULATOR_HOST = '10.0.2.2';
 
-/** Host where Metro runs (same PC as API in typical dev). */
+function isAndroidEmulator(): boolean {
+  if (Platform.OS !== 'android') return false;
+  const constants = Platform.constants as { Model?: string; Manufacturer?: string; Fingerprint?: string };
+  const model = String(constants?.Model ?? '');
+  const manufacturer = String(constants?.Manufacturer ?? '');
+  const fingerprint = String(constants?.Fingerprint ?? '');
+  return (
+    /sdk_gphone|emulator|simulator|generic/i.test(model) ||
+    /generic|emulator/i.test(fingerprint) ||
+    (manufacturer.toLowerCase() === 'google' && /sdk/i.test(model))
+  );
+}
+
 function resolveDevHostFromExpo(): string | null {
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri && typeof hostUri === 'string') {
@@ -55,6 +65,9 @@ function resolveDevHostFromExpo(): string | null {
 }
 
 function getDevApiUrl(): string {
+  if (Platform.OS === 'android' && isAndroidEmulator()) {
+    return `http://${ANDROID_EMULATOR_HOST}:${DEFAULT_BACKEND_PORT}/api/v1`;
+  }
   const host = resolveDevHostFromExpo();
   if (Platform.OS === 'android') {
     if (host) return `http://${host}:${DEFAULT_BACKEND_PORT}/api/v1`;
@@ -65,6 +78,9 @@ function getDevApiUrl(): string {
 }
 
 function getDevSocketUrl(): string {
+  if (Platform.OS === 'android' && isAndroidEmulator()) {
+    return `http://${ANDROID_EMULATOR_HOST}:${DEFAULT_BACKEND_PORT}`;
+  }
   const host = resolveDevHostFromExpo();
   if (Platform.OS === 'android') {
     if (host) return `http://${host}:${DEFAULT_BACKEND_PORT}`;
@@ -104,4 +120,3 @@ export default {
   getSocketUrl,
   ENV_INFO,
 };
-

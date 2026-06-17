@@ -15,12 +15,12 @@ export function useOrderByIdQuery(orderId: string) {
   });
 }
 
-export function useOrderTrackQuery(orderId: string, options?: { poll?: boolean }) {
+export function useOrderTrackQuery(orderId: string) {
   return useQuery({
     queryKey: orderDetailKeys.track(orderId),
     queryFn: () => trackOrder(orderId),
     enabled: Boolean(orderId),
-    refetchInterval: options?.poll === false ? false : 15_000,
+    staleTime: 120_000,
   });
 }
 

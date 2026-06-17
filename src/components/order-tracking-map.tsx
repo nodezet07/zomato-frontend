@@ -1,11 +1,11 @@
-import type { ComponentType } from 'react';
+import type { ComponentType } from "react";
 
-import { MapErrorBoundary } from '@/components/map/MapErrorBoundary';
+import { MapErrorBoundary } from "@/components/map/MapErrorBoundary";
 import {
   OrderTrackingMapFallback,
   type OrderTrackingMapProps,
-} from '@/components/order-tracking-map-fallback';
-import { hasNativeMapsModule } from '@/lib/canUseNativeMaps';
+} from "@/components/order-tracking-map-fallback";
+import { hasNativeMapsModule } from "@/lib/canUseNativeMaps";
 
 export type { OrderTrackingMapProps };
 
@@ -14,7 +14,8 @@ let NativeOrderMap: ComponentType<OrderTrackingMapProps> | null = null;
 if (hasNativeMapsModule()) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    NativeOrderMap = require('@/components/order-tracking-map-native').OrderTrackingMapNative;
+    NativeOrderMap =
+      require("@/components/order-tracking-map-native").OrderTrackingMapNative;
   } catch {
     NativeOrderMap = null;
   }

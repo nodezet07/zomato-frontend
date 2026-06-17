@@ -10,6 +10,8 @@ import { OrderTrackingMap } from '@/components/order-tracking-map';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useOrderByIdQuery, useOrderTrackQuery } from '@/hooks/queries/orderDetail';
+import { fetchOrderRoute } from '@/services/orders';
+import { useQuery } from '@tanstack/react-query';
 import { useOrderSocket } from '@/hooks/use-order-socket';
 
 function pickCoord(...sources: Array<{ latitude?: number; longitude?: number } | null | undefined>) {
@@ -36,7 +38,7 @@ const STATUS_STEPS = [
 
 const STEP_LABELS: Record<string, string> = {
   PENDING: 'Order Placed',
-  CONFIRMED: 'Order Confirmed',
+  CONFIRMED: 'Restaurant Accepted',
   PREPARING: 'Food is being Prepared',
   READY_FOR_PICKUP: 'Ready for Pickup',
   RIDER_ASSIGNED: 'Delivery Partner Assigned',
@@ -46,8 +48,8 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 const STEP_DESCRIPTIONS: Record<string, string> = {
-  PENDING: 'Waiting for restaurant confirmation',
-  CONFIRMED: 'Restaurant is reviewing your order',
+  PENDING: 'Waiting for the restaurant to accept your order',
+  CONFIRMED: 'Restaurant accepted — your food will be prepared soon',
   PREPARING: 'Chef is cooking your delicious meal',
   READY_FOR_PICKUP: 'Rider is about to pick up your food',
   RIDER_ASSIGNED: 'Partner is arriving at the restaurant',
@@ -83,10 +85,15 @@ export default function TrackOrderScreen() {
   const etaText = useMemo(() => {
     if (status === 'DELIVERED') return 'Delivered';
     if (status === 'CANCELLED') return 'Cancelled';
+    if (status === 'PENDING') return 'Awaiting restaurant';
+    const prepMins = tracking?.estimatedPreparationTime ?? order?.estimatedPreparationTime;
+    if ((status === 'CONFIRMED' || status === 'PREPARING') && prepMins) {
+      return `~${prepMins} min prep`;
+    }
     if (remainingMins == null) return '—';
     if (remainingMins === 0) return 'Arriving any moment';
     return `${remainingMins} mins`;
-  }, [status, remainingMins]);
+  }, [status, remainingMins, tracking?.estimatedPreparationTime, order?.estimatedPreparationTime]);
 
   const riderCoord = pickCoord(
     tracking?.liveLocation,
@@ -94,16 +101,38 @@ export default function TrackOrderScreen() {
     order?.riderLocation,
   );
 
+  const riderHeading =
+    (tracking?.liveLocation as { heading?: number } | undefined)?.heading ??
+    (tracking?.riderLocation as { heading?: number } | undefined)?.heading;
+
+  const routeQ = useQuery({
+    queryKey: [
+      'order-route',
+      id,
+      riderCoord ? Math.round(riderCoord.latitude * 200) : 0,
+      riderCoord ? Math.round(riderCoord.longitude * 200) : 0,
+      status,
+    ],
+    queryFn: () => fetchOrderRoute(id),
+    enabled: Boolean(id) && Boolean(riderCoord || restaurantCoord),
+    staleTime: 45_000,
+  });
+
   const customerCoord = pickCoord(
-    order?.deliveryAddress?.location,
-    order?.deliveryAddress,
     tracking?.deliveryLocation,
+    order?.customerAddress,
+    order?.deliveryAddress,
   );
 
   const restaurantCoord = pickCoord(
-    order?.restaurantId?.location,
-    order?.restaurant?.location,
     tracking?.restaurantLocation,
+    order?.restaurantId && typeof order.restaurantId === 'object'
+      ? {
+          latitude: Number((order.restaurantId as { latitude?: number }).latitude),
+          longitude: Number((order.restaurantId as { longitude?: number }).longitude),
+        }
+      : null,
+    order?.restaurant?.location,
   );
 
   const timeline = useMemo(() => {
@@ -127,6 +156,27 @@ export default function TrackOrderScreen() {
   const activeStepDescription = useMemo(() => {
     return STEP_DESCRIPTIONS[status] ?? 'Updating your order status';
   }, [status]);
+
+  const riderInfo = useMemo(() => {
+    const fromTrack = tracking?.rider;
+    if (fromTrack?.fullName || fromTrack?.mobile) return fromTrack;
+    const riderDoc = order?.riderId;
+    if (riderDoc && typeof riderDoc === 'object') {
+      const user = riderDoc.userId;
+      return {
+        fullName: user?.fullName ?? riderDoc.fullName ?? 'Delivery Partner',
+        mobile: user?.mobile ?? riderDoc.mobile ?? null,
+        riderCode: riderDoc.riderCode,
+        vehicleType: riderDoc.vehicleType,
+      };
+    }
+    return null;
+  }, [tracking?.rider, order?.riderId]);
+
+  const showRiderCard = Boolean(
+    riderInfo &&
+      ['RIDER_ASSIGNED', 'PICKED_UP', 'ON_THE_WAY', 'DELIVERED'].includes(status),
+  );
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -156,15 +206,17 @@ export default function TrackOrderScreen() {
             </ThemedView>
           </ThemedView>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-            
-            {/* Map Area */}
+          <>
             <View style={styles.mapContainer}>
               <OrderTrackingMap
                 customer={customerCoord}
                 restaurant={restaurantCoord}
                 rider={riderCoord}
+                riderHeading={riderHeading}
+                routePath={routeQ.data}
                 height={260}
+                followRider
+                orderStatus={status}
               />
               <View style={[styles.socketBadge, { backgroundColor: socketLive ? 'rgba(15,138,95,0.9)' : 'rgba(36,37,40,0.85)' }]}>
                 <View style={[styles.socketDot, { backgroundColor: socketLive ? '#ffffff' : '#9fa2a7' }]} />
@@ -174,7 +226,7 @@ export default function TrackOrderScreen() {
               </View>
             </View>
 
-            {/* ETA Card */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
             <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.backgroundSelected }]}>
               <View style={styles.etaHeaderRow}>
                 <View style={{ flex: 1 }}>
@@ -192,6 +244,13 @@ export default function TrackOrderScreen() {
 
               <View style={[styles.divider, { backgroundColor: theme.backgroundSelected }]} />
 
+              {(status === 'CONFIRMED' || status === 'PREPARING') &&
+              (tracking?.estimatedPreparationTime ?? order?.estimatedPreparationTime) ? (
+                <ThemedText style={[styles.waitTimeText, { color: theme.primary }]}>
+                  Restaurant prep time: {tracking?.estimatedPreparationTime ?? order?.estimatedPreparationTime} minutes
+                </ThemedText>
+              ) : null}
+
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={styles.indicatorPulse}>
                   <View style={styles.pulseInner} />
@@ -201,6 +260,36 @@ export default function TrackOrderScreen() {
                 </View>
               </View>
             </ThemedView>
+
+            {showRiderCard && riderInfo ? (
+              <ThemedView type="backgroundElement" style={[styles.card, styles.riderCard, { borderColor: theme.backgroundSelected }]}>
+                <View style={styles.riderCardHeader}>
+                  <View style={[styles.bicycleIconCircle, { backgroundColor: theme.primarySoft }]}>
+                    <Ionicons name="person" size={22} color={theme.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={styles.riderLabel}>Your delivery partner</ThemedText>
+                    <ThemedText style={[styles.riderName, { color: theme.text }]}>
+                      {riderInfo.fullName ?? 'Delivery Partner'}
+                    </ThemedText>
+                    {riderInfo.riderCode ? (
+                      <ThemedText style={[styles.riderMeta, { color: theme.textSecondary }]}>
+                        ID: {riderInfo.riderCode}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                </View>
+                {riderInfo.mobile ? (
+                  <Pressable
+                    onPress={() => Linking.openURL(`tel:${riderInfo.mobile}`)}
+                    style={[styles.callRiderBtn, { backgroundColor: theme.primary }]}
+                  >
+                    <Ionicons name="call" size={18} color="#ffffff" />
+                    <ThemedText style={styles.callRiderText}>Call {riderInfo.mobile}</ThemedText>
+                  </Pressable>
+                ) : null}
+              </ThemedView>
+            ) : null}
 
             {/* Delivery Timeline Card */}
             <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.backgroundSelected }]}>
@@ -280,6 +369,7 @@ export default function TrackOrderScreen() {
               </Pressable>
             </View>
           </ScrollView>
+          </>
         )}
       </SafeAreaView>
     </ThemedView>
@@ -316,6 +406,8 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     height: 260,
+    marginHorizontal: 16,
+    marginBottom: 14,
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
@@ -391,6 +483,49 @@ const styles = StyleSheet.create({
   etaDescriptionText: {
     fontSize: 12,
     fontFamily: 'PlusJakartaSans_700Bold',
+  },
+  waitTimeText: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    marginBottom: 10,
+  },
+  riderCard: {
+    gap: 12,
+  },
+  riderCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  riderLabel: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    opacity: 0.7,
+  },
+  riderName: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    marginTop: 2,
+  },
+  riderMeta: {
+    fontSize: 11,
+    fontFamily: 'PlusJakartaSans_500Medium',
+    marginTop: 2,
+  },
+  callRiderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  callRiderText: {
+    color: '#ffffff',
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 14,
   },
   timelineTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',

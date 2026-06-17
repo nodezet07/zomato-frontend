@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTabBarHeight } from '@/hooks/use-tab-bar-height';
 import { useOrderHistoryQuery } from '@/hooks/queries/orders';
 import type { Order } from '@/services/orders';
 
@@ -29,6 +30,7 @@ function formatDate(dateStr?: string) {
 export default function OrdersScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const tabBarHeight = useTabBarHeight();
   const q = useOrderHistoryQuery();
   const items = (Array.isArray(q.data) ? q.data : []) as Order[];
   const loading = q.isLoading || q.isFetching;
@@ -42,9 +44,9 @@ export default function OrdersScreen() {
       case 'CANCELLED':
         return { label: 'Cancelled', color: '#e23744', icon: 'close-circle' as const };
       case 'PENDING':
-        return { label: 'Received', color: '#ff5a00', icon: 'time' as const };
+        return { label: 'Awaiting acceptance', color: '#f59e0b', icon: 'hourglass' as const };
       case 'CONFIRMED':
-        return { label: 'Confirmed', color: '#ff5a00', icon: 'checkmark-circle' as const };
+        return { label: 'Accepted', color: '#ff5a00', icon: 'checkmark-circle' as const };
       case 'PREPARING':
         return { label: 'Preparing', color: '#ff5a00', icon: 'restaurant' as const };
       case 'READY_FOR_PICKUP':
@@ -89,7 +91,7 @@ export default function OrdersScreen() {
         <FlatList
           data={items}
           keyExtractor={(o) => o._id}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: tabBarHeight + 16 }]}
           refreshControl={<RefreshControl refreshing={q.isFetching} onRefresh={() => q.refetch()} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>

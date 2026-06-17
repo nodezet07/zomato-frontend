@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/apiFetch';
 import { clearTokens, getRefreshToken, setTokens } from '@/lib/storage';
+import { registerForPushNotifications, unregisterForPushNotifications } from '@/lib/pushNotifications';
 import { fetchProfile } from '@/services/profile';
 
 export type AuthUser = {
@@ -34,6 +35,7 @@ export async function saveAuthFromResponse(body: ApiEnvelope): Promise<PostAuthR
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
   });
+  void registerForPushNotifications();
   return resolvePostAuthRoute();
 }
 
@@ -80,5 +82,6 @@ export async function logout() {
   } catch {
     // Still clear local session if backend is unreachable.
   }
+  await unregisterForPushNotifications();
   await clearTokens();
 }

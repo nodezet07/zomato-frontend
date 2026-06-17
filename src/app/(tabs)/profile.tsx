@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   View,
-  ScrollView,
   Image,
   ActivityIndicator,
 } from 'react-native';
@@ -12,6 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeGradient } from '@/components/safe-gradient';
+
+import { TabScrollView } from '@/components/tab-scroll-view';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -101,8 +102,8 @@ export default function ProfileScreen() {
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <TabScrollView contentContainerStyle={styles.scrollBody}>
           {/* Top Profile Header Card */}
           <SafeGradient
             colors={[theme.backgroundSelected, theme.backgroundElement]}
@@ -392,7 +393,7 @@ export default function ProfileScreen() {
               )}
             </Pressable>
           </View>
-        </ScrollView>
+        </TabScrollView>
       </SafeAreaView>
     </ThemedView>
   );

@@ -1,5 +1,7 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 
+import { apiFetch } from '@/lib/apiFetch';
+
 export type LatLng = { latitude: number; longitude: number };
 
 function hasLocationNativeModule(): boolean {
@@ -74,6 +76,25 @@ export async function getCurrentCoords(): Promise<LatLng | null> {
 }
 
 export async function reverseGeocode(latlng: LatLng): Promise<Record<string, unknown> | null> {
+  try {
+    const body = await apiFetch(
+      `/restaurants/geocode/reverse?lat=${latlng.latitude}&lng=${latlng.longitude}`,
+    );
+    const address = (body as { data?: { address?: Record<string, unknown> } })?.data?.address;
+    if (address) {
+      return {
+        name: address.street,
+        street: address.street,
+        city: address.city,
+        region: address.state,
+        postalCode: address.pincode,
+        country: address.country,
+      };
+    }
+  } catch {
+    // fall through to device geocoder
+  }
+
   const Location = await getExpoLocation();
   if (!Location) return null;
   try {

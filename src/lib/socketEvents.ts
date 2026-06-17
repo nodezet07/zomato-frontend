@@ -25,7 +25,10 @@ export type OrderSocketPayload = {
   restaurantId?: string;
   customerId?: string;
   riderId?: string;
-  riderLocation?: { latitude: number; longitude: number };
+  riderName?: string;
+  riderMobile?: string;
+  riderCode?: string;
+  riderLocation?: { latitude: number; longitude: number; heading?: number };
   etaMinutes?: number;
   estimatedDeliveryTime?: string;
   timestamp?: string;

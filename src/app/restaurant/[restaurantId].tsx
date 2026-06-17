@@ -13,7 +13,7 @@ import {
   Platform,
   Clipboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -33,6 +33,7 @@ import { useRestaurantReviewsQuery } from '@/hooks/queries/reviews';
 import { useCart } from '@/hooks/use-cart';
 import { getCartDisplayTotal, getCartItemCount, getCartRestaurantName } from '@/lib/cartDisplay';
 import { toast } from '@/lib/toast';
+import { useFloatingCartBottom, useFloatingCartScrollPadding } from '@/hooks/use-floating-cart-inset';
 
 function FoodTypeBadge({ type }: { type?: string }) {
   if (type === 'veg') {
@@ -75,6 +76,7 @@ function FoodTypeBadge({ type }: { type?: string }) {
 
 export default function RestaurantDetailScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
   const add = useAddToCartMutation();
@@ -98,6 +100,8 @@ export default function RestaurantDetailScreen() {
   const cartCount = getCartItemCount(cart);
   const cartTotal = getCartDisplayTotal(cart);
   const cartRestaurantName = getCartRestaurantName(cart) ?? restaurant?.restaurantName;
+  const cartBottom = useFloatingCartBottom();
+  const scrollBottomPadding = useFloatingCartScrollPadding(cartCount > 0);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -304,7 +308,7 @@ export default function RestaurantDetailScreen() {
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {/* Zomato Header Bar */}
         <View style={[styles.headerBar, { backgroundColor: theme.backgroundElement }]}>
           <Pressable onPress={() => router.back()} style={styles.headerBackBtn}>
@@ -335,7 +339,7 @@ export default function RestaurantDetailScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: cartCount > 0 ? 100 : Spacing.six }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: scrollBottomPadding }}>
           <View style={[styles.sheet, { backgroundColor: theme.background }]}>
             {busy ? (
               <ThemedText themeColor="textSecondary" style={{ textAlign: 'center', marginTop: 32 }}>Loading…</ThemedText>
@@ -591,6 +595,7 @@ export default function RestaurantDetailScreen() {
                                 <Pressable
                                   onPress={() => handleAddClick(it)}
                                   style={styles.addBtn}
+                                  hitSlop={8}
                                 >
                                   <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
                                 </Pressable>
@@ -741,6 +746,7 @@ export default function RestaurantDetailScreen() {
                                 <Pressable
                                   onPress={() => handleAddClick(it)}
                                   style={styles.addBtn}
+                                  hitSlop={8}
                                 >
                                   <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
                                 </Pressable>
@@ -844,6 +850,7 @@ export default function RestaurantDetailScreen() {
                                     <Pressable
                                       onPress={() => handleAddClick(it)}
                                       style={styles.addBtn}
+                                      hitSlop={8}
                                     >
                                       <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
                                     </Pressable>
@@ -904,7 +911,7 @@ export default function RestaurantDetailScreen() {
               )}
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 8 }}>
               {sizeAddons.length > 0 && (
                 <View style={{ marginBottom: 20 }}>
                   <ThemedText style={styles.sectionTitle}>Quantity</ThemedText>
@@ -964,7 +971,7 @@ export default function RestaurantDetailScreen() {
               )}
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
               <View style={styles.qtyContainer}>
                 <Pressable
                   onPress={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -1092,12 +1099,12 @@ export default function RestaurantDetailScreen() {
       </Modal>
 
       <FloatingCartBar
-        visible={cartCount > 0}
+        visible={cartCount > 0 && !customizingItem && !showOffersModal}
         itemCount={cartCount}
         total={cartTotal}
         restaurantName={cartRestaurantName}
         onPress={() => router.push('/cart')}
-        bottom={20}
+        bottom={cartBottom}
       />
     </ThemedView>
   );
@@ -1344,6 +1351,8 @@ const styles = StyleSheet.create({
     width: 110,
     alignItems: 'center',
     position: 'relative',
+    paddingBottom: 28,
+    overflow: 'visible',
   },
   dishImage: {
     width: 100,
@@ -1360,7 +1369,7 @@ const styles = StyleSheet.create({
   },
   addBtn: {
     position: 'absolute',
-    bottom: -8,
+    bottom: 12,
     alignSelf: 'center',
     width: 80,
     height: 32,
@@ -1370,11 +1379,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   addBtnText: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
@@ -1383,7 +1393,7 @@ const styles = StyleSheet.create({
   },
   customisableText: {
     position: 'absolute',
-    bottom: -22,
+    bottom: 0,
     fontSize: 9,
     fontFamily: 'PlusJakartaSans_600SemiBold',
     color: '#ff5a00',
@@ -1422,8 +1432,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: 24,
-    maxHeight: '85%',
+    maxHeight: '88%',
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1440,6 +1450,7 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 16,
+    maxHeight: 280,
   },
   modalItemImage: {
     width: '100%',

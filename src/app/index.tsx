@@ -10,13 +10,13 @@ const BOOT_TIMEOUT_MS = 5000;
 const LOADING_ORANGE = '#ff5a00';
 
 export default function Index() {
-  const [target, setTarget] = useState<'auth' | 'tabs' | null>(null);
+  const [target, setTarget] = useState<'welcome' | 'tabs' | null>(null);
 
   useEffect(() => {
     let alive = true;
 
     const fallback = setTimeout(() => {
-      if (alive) setTarget('auth');
+      if (alive) setTarget('welcome');
     }, BOOT_TIMEOUT_MS);
 
     (async () => {
@@ -34,12 +34,12 @@ export default function Index() {
           void registerForPushNotifications();
           setTarget('tabs');
         } else {
-          setTarget('auth');
+          setTarget('welcome');
         }
       } catch {
         if (!alive) return;
         clearTimeout(fallback);
-        setTarget('auth');
+        setTarget('welcome');
       }
     })();
 
@@ -57,5 +57,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={target === 'tabs' ? '/(tabs)' : '/(auth)'} />;
+  return <Redirect href={target === 'tabs' ? '/(tabs)' : '/(onboarding)'} />;
 }

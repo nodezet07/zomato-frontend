@@ -12,6 +12,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { useOrderByIdQuery } from '@/hooks/queries/orderDetail';
 import { requestOrderRefund } from '@/services/orders';
 import { useAddToCartMutation } from '@/hooks/queries/cart';
+import {
+  canTrackOrder,
+  getPaymentStatusDisplay,
+  isPaymentFailed,
+  needsOnlinePayment,
+} from '@/lib/orderPayment';
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return '';
@@ -39,7 +45,20 @@ export default function OrderDetailScreen() {
   const status = String(order?.orderStatus ?? order?.status ?? 'UNKNOWN');
   const isDelivered = status === 'DELIVERED';
   const isCancelled = status === 'CANCELLED';
-  const isPending = status === 'PENDING';
+  const paymentDisplay = order ? getPaymentStatusDisplay(order) : null;
+  const showPayAgain = order && needsOnlinePayment(order);
+  const paymentFailed = order && isPaymentFailed(order);
+  const showTrack = order && canTrackOrder(order);
+
+  function retryPayment() {
+    router.push({
+      pathname: '/payment/razorpay',
+      params: {
+        orderId: id,
+        restaurantName: order?.restaurantId?.restaurantName ?? '',
+      },
+    });
+  }
 
   const refundMut = useMutation({
     mutationFn: () => requestOrderRefund(id, refundNote.trim()),
@@ -179,19 +198,62 @@ export default function OrderDetailScreen() {
 
             <View style={styles.metaRow}>
               <View>
-                <ThemedText style={[styles.metaLabel, { color: theme.textSecondary }]}>STATUS</ThemedText>
+                <ThemedText style={[styles.metaLabel, { color: theme.textSecondary }]}>ORDER STATUS</ThemedText>
                 <ThemedText style={[styles.metaValue, { color: getStatusColor(status) }]}>
                   {status.replace(/_/g, ' ')}
                 </ThemedText>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <ThemedText style={[styles.metaLabel, { color: theme.textSecondary }]}>PAYMENT METHOD</ThemedText>
-                <ThemedText style={[styles.metaValue, { color: theme.text }]}>
-                  {order.paymentMethod === 'ONLINE' ? 'Online Payment' : 'Cash on Delivery'}
+                <ThemedText style={[styles.metaLabel, { color: theme.textSecondary }]}>PAYMENT</ThemedText>
+                <ThemedText
+                  style={[
+                    styles.metaValue,
+                    {
+                      color:
+                        paymentDisplay?.tone === 'failed'
+                          ? '#e23744'
+                          : paymentDisplay?.tone === 'pending'
+                            ? '#f59e0b'
+                            : paymentDisplay?.tone === 'paid'
+                              ? '#0f8a5f'
+                              : theme.text,
+                    },
+                  ]}
+                >
+                  {paymentDisplay?.label ?? '—'}
                 </ThemedText>
               </View>
             </View>
           </ThemedView>
+
+          {showPayAgain && (
+            <ThemedView
+              type="backgroundElement"
+              style={[
+                styles.paymentAlert,
+                {
+                  borderColor: paymentFailed ? 'rgba(226,55,68,0.35)' : 'rgba(245,158,11,0.45)',
+                  backgroundColor: paymentFailed ? 'rgba(226,55,68,0.08)' : 'rgba(245,158,11,0.1)',
+                },
+              ]}
+            >
+              <Ionicons
+                name={paymentFailed ? 'close-circle' : 'card-outline'}
+                size={22}
+                color={paymentFailed ? '#e23744' : '#f59e0b'}
+              />
+              <View style={{ flex: 1 }}>
+                <ThemedText style={[styles.paymentAlertTitle, { color: theme.text }]}>
+                  {paymentFailed ? 'Payment not completed' : 'Payment required'}
+                </ThemedText>
+                <ThemedText style={[styles.paymentAlertBody, { color: theme.textSecondary }]}>
+                  {paymentFailed
+                    ? 'Your payment did not go through. Retry to confirm this order with the restaurant.'
+                    : 'Complete online payment to confirm your order. The restaurant will accept after payment.'}
+                </ThemedText>
+              </View>
+            </ThemedView>
+          )}
 
           {/* Items Invoice Card */}
           <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.backgroundSelected }]}>
@@ -286,14 +348,26 @@ export default function OrderDetailScreen() {
             </ThemedView>
           )}
 
-          {/* Active Order Actions */}
-          {!isDelivered && !isCancelled && (
+          {/* Payment / tracking actions */}
+          {showPayAgain && (
+            <Pressable
+              onPress={retryPayment}
+              style={[styles.primaryBtn, { backgroundColor: paymentFailed ? '#e23744' : theme.primary }]}
+            >
+              <Ionicons name="card" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+              <ThemedText style={styles.primaryText}>
+                {paymentFailed ? 'Retry payment' : 'Pay now'}
+              </ThemedText>
+            </Pressable>
+          )}
+
+          {showTrack && (
             <Pressable
               onPress={() => router.push({ pathname: '/order/track/[orderId]', params: { orderId: id } })}
               style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
             >
               <Ionicons name="bicycle" size={18} color="#ffffff" style={{ marginRight: 6 }} />
-              <ThemedText style={styles.primaryText}>Track Live Order</ThemedText>
+              <ThemedText style={styles.primaryText}>Track live order</ThemedText>
             </Pressable>
           )}
 
@@ -566,5 +640,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(226,55,68,0.2)',
+  },
+  paymentAlert: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  paymentAlertTitle: {
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 13,
+  },
+  paymentAlertBody: {
+    marginTop: 4,
+    fontSize: 11.5,
+    fontFamily: 'PlusJakartaSans_500Medium',
+    lineHeight: 16,
   },
 });

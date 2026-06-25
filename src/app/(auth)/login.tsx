@@ -17,20 +17,32 @@ import { useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { apiFetch } from '@/lib/apiFetch';
 import { saveAuthFromResponse } from '@/lib/auth';
+import { getApiUrl } from '@/config/env';
 import { useTheme } from '@/hooks/use-theme';
+
+function extractDevOtp(body: unknown): string | undefined {
+  const data = (body as { data?: { devOtp?: string } })?.data;
+  return data?.devOtp;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  const err = error as { message?: string; data?: { message?: string } };
+  return err?.data?.message ?? err?.message ?? fallback;
+}
 
 export default function LoginScreen() {
   const { width, height } = useWindowDimensions();
   const router = useRouter();
   const theme = useTheme();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(__DEV__ ? 'enganzalshaikh@gmail.com' : '');
   const [fullName] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState<'input' | 'otp'>('input');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
@@ -122,21 +134,24 @@ export default function LoginScreen() {
 
     setBusy(true);
     setError(null);
+    setDevOtpHint(null);
     try {
-      if (__DEV__) console.log('📨 [AUTH] send-otp', { email: emailTrim, purpose: 'login' });
+      if (__DEV__) console.log('📨 [AUTH] send-otp', { email: emailTrim, api: getApiUrl() });
       const body = await apiFetch('/auth/send-otp', {
         method: 'POST',
         body: JSON.stringify({ email: emailTrim, purpose: 'login' }),
       });
-      const devOtp = (body as any)?.data?.devOtp as string | undefined;
-      if (__DEV__ && devOtp) console.log('🧪 [DEV OTP]', devOtp);
+      const devOtp = extractDevOtp(body);
+      if (devOtp) {
+        setDevOtpHint(devOtp);
+        if (__DEV__) console.log('🧪 [DEV OTP]', devOtp);
+      }
       setMode('login');
       setStep('otp');
       setResendTimer(60);
       requestAnimationFrame(() => inputRefs.current[0]?.focus());
-    } catch (e: any) {
-      const status = e?.response?.status;
-      // If login OTP fails because user doesn't exist, try signup OTP (single screen flow)
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status;
       if (status === 404) {
         try {
           if (__DEV__) console.log('📨 [AUTH] send-otp (signup)', { email: emailTrim, purpose: 'signup' });
@@ -144,21 +159,24 @@ export default function LoginScreen() {
             method: 'POST',
             body: JSON.stringify({ email: emailTrim, purpose: 'signup' }),
           });
-          const devOtp = (body as any)?.data?.devOtp as string | undefined;
-          if (__DEV__ && devOtp) console.log('🧪 [DEV OTP]', devOtp);
+          const devOtp = extractDevOtp(body);
+          if (devOtp) {
+            setDevOtpHint(devOtp);
+            if (__DEV__) console.log('🧪 [DEV OTP]', devOtp);
+          }
           setMode('signup');
           setStep('otp');
           setResendTimer(60);
           requestAnimationFrame(() => inputRefs.current[0]?.focus());
-        } catch (signupError: any) {
-          const msg = signupError?.response?.data?.message ?? signupError?.message ?? 'Failed to send OTP';
-          setError(String(msg));
-          Alert.alert('Error', String(msg));
+        } catch (signupError: unknown) {
+          const msg = extractErrorMessage(signupError, 'Failed to send OTP');
+          setError(msg);
+          Alert.alert('Error', msg);
         }
       } else {
-        const msg = e?.response?.data?.message ?? e?.message ?? 'Failed to send OTP';
-        setError(String(msg));
-        Alert.alert('Error', String(msg));
+        const msg = extractErrorMessage(e, 'Failed to send OTP — check backend is running at ' + getApiUrl());
+        setError(msg);
+        Alert.alert('Connection error', msg);
       }
     } finally {
       setBusy(false);
@@ -212,8 +230,11 @@ export default function LoginScreen() {
         method: 'POST',
         body: JSON.stringify({ email: emailTrim, purpose: mode }),
       });
-      const devOtp = (body as any)?.data?.devOtp as string | undefined;
-      if (__DEV__ && devOtp) console.log('🧪 [DEV OTP]', devOtp);
+      const devOtp = extractDevOtp(body);
+      if (devOtp) {
+        setDevOtpHint(devOtp);
+        if (__DEV__) console.log('🧪 [DEV OTP]', devOtp);
+      }
       setResendTimer(60);
       setOtp(['', '', '', '', '', '']);
       requestAnimationFrame(() => inputRefs.current[0]?.focus());
@@ -298,6 +319,19 @@ export default function LoginScreen() {
                 </Text>
               )}
             </View>
+
+            {__DEV__ && step === 'otp' && devOtpHint ? (
+              <View style={[styles.devOtpBanner, { backgroundColor: `${theme.primary}18`, borderColor: theme.primary }]}>
+                <Text style={[styles.devOtpLabel, { color: theme.textSecondary }]}>
+                  Gmail failed — use dev OTP:
+                </Text>
+                <Text style={[styles.devOtpCode, { color: theme.primary }]}>{devOtpHint}</Text>
+              </View>
+            ) : null}
+
+            {error ? (
+              <Text style={[styles.errorText, { color: '#e53935' }]}>{error}</Text>
+            ) : null}
 
             {step === 'input' ? (
               <View style={styles.inputSection}>
@@ -683,6 +717,29 @@ const styles = StyleSheet.create({
   error: {
     marginTop: 10,
     fontSize: 14,
+    fontFamily: 'PlusJakartaSans_500Medium',
+    textAlign: 'center',
+  },
+  devOtpBanner: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  devOtpLabel: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans_500Medium',
+    marginBottom: 4,
+  },
+  devOtpCode: {
+    fontSize: 28,
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    letterSpacing: 4,
+  },
+  errorText: {
+    marginBottom: 10,
+    fontSize: 13,
     fontFamily: 'PlusJakartaSans_500Medium',
     textAlign: 'center',
   },

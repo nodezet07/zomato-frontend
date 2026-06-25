@@ -15,7 +15,6 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { ToastHost } from '@/components/toast-host';
 import { queryClient } from '@/lib/queryClient';
 
@@ -51,7 +50,6 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={DefaultTheme}>
-          <AnimatedSplashOverlay />
           <ToastHost />
           <Stack
             screenOptions={{

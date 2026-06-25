@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -14,16 +14,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeGradient } from '@/components/safe-gradient';
-import { useQueryClient } from '@tanstack/react-query';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/hooks/use-cart';
 import { toast } from '@/lib/toast';
 import {
-  cartKeys,
   useApplyCouponMutation,
   useClearCartMutation,
   useRemoveCartItemMutation,
@@ -35,6 +32,8 @@ import {
 import { fetchMenuItemsByRestaurant, type MenuItem } from '@/services/menu';
 import { storageGetItem, storageSetItem } from '@/lib/storage';
 import { V1_WALLET_ENABLED } from '@/config/features';
+import { useCouponsByRestaurantQuery } from '@/hooks/queries/coupons';
+import { formatCouponDescription, pickPrimaryCoupon } from '@/lib/offerDisplay';
 
 type PaymentMethod = 'COD' | 'ONLINE';
 
@@ -50,7 +49,6 @@ function getDeliveryTimeLabel(restaurant?: { averageDeliveryTime?: number }) {
 export default function CartScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const { cart, loading } = useCart();
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
@@ -70,7 +68,6 @@ export default function CartScreen() {
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noCutlery, setNoCutlery] = useState(true);
   const [recommendations, setRecommendations] = useState<MenuItem[]>([]);
-  const [loadingRecs, setLoadingRecs] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
                                                                                    
   const mutating =
@@ -83,14 +80,21 @@ export default function CartScreen() {
     updatePrefs.isPending;
 
   const restaurant = cart?.restaurantId as any;
+  const restaurantId =
+    typeof restaurant === 'object' && restaurant?._id
+      ? String(restaurant._id)
+      : typeof cart?.restaurantId === 'string'
+        ? cart.restaurantId
+        : '';
+  const couponsQ = useCouponsByRestaurantQuery(restaurantId);
+  const suggestedCoupon = pickPrimaryCoupon(couponsQ.data?.coupons ?? []);
   const deliveryTimeStr = getDeliveryTimeLabel(restaurant);
 
   // Sync preferences from backend cart object
   useEffect(() => {
     if (cart) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from server cart
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local draft fields from server cart snapshot
       setNote(cart.generalNote ?? '');
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from server cart
       setNoCutlery(cart.dontSendCutlery ?? false);
     }
   }, [cart]);
@@ -98,8 +102,6 @@ export default function CartScreen() {
   // Fetch recommendations from this restaurant's menu
   useEffect(() => {
     if (restaurant?._id) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for async fetch
-      setLoadingRecs(true);
       fetchMenuItemsByRestaurant(restaurant._id)
         .then((items) => {
           // Filter out items already in the cart and take first 5
@@ -107,8 +109,7 @@ export default function CartScreen() {
           const filtered = items.filter((it) => !inCartIds.has(it._id)).slice(0, 5);
           setRecommendations(filtered);
         })
-        .catch((err) => console.log('Error fetching recs', err))
-        .finally(() => setLoadingRecs(false));
+        .catch((err) => console.log('Error fetching recs', err));
     }
   }, [restaurant?._id, cart?.items]);
 
@@ -141,11 +142,6 @@ export default function CartScreen() {
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
-
-  const totalItems = useMemo(
-    () => cart?.items?.reduce((sum, it) => sum + (it.quantity ?? 0), 0) ?? 0,
-    [cart]
-  );
 
   const handleAddRecommendation = async (item: MenuItem) => {
     if (mutating) return;
@@ -233,7 +229,6 @@ export default function CartScreen() {
   const taxAmount = (cart as any).taxAmount ?? 0;
   const couponDiscount = (cart as any).couponDiscount ?? 0;
   const appliedCoupon = cart.appliedCouponId as any;
-  const goldDiscount = (cart as any).goldDiscount ?? 0;
   const grandTotal = Math.max(0, (cart as any).grandTotal);
 
   return (
@@ -272,46 +267,6 @@ export default function CartScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollBody, { paddingBottom: checkoutBarHeight + 16 }]}
         >
-          {/* Gold Savings Banner */}
-          {goldDiscount > 0 && (
-            <SafeGradient
-              colors={['#ff5a00', '#ff0055']}
-              style={styles.goldSavingsBanner}
-            >
-              <ThemedText style={styles.goldSavingsText}>
-                🥳 You saved <ThemedText style={{ color: '#ffffff', fontFamily: 'PlusJakartaSans_800ExtraBold' }}>₹{goldDiscount}</ThemedText> with QuickBite Gold
-              </ThemedText>
-            </SafeGradient>
-          )}
-
-          {/* Special Offer Card */}
-          <View style={[styles.specialOfferCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
-            <View style={styles.specialOfferHeader}>
-              <ThemedText style={[styles.specialOfferTitle, { color: theme.text }]}>Special offer for you</ThemedText>
-              <Ionicons name="gift" size={16} color={theme.primary} />
-            </View>
-            <View style={styles.specialOfferBody}>
-              <View style={[styles.districtBadge, { backgroundColor: theme.primary }]}>
-                <ThemedText style={styles.districtText}>district</ThemedText>
-                <ThemedText style={styles.districtSubText}>BY QUICKBITE</ThemedText>
-              </View>
-              <View style={{ flex: 1 }}>
-                <ThemedText style={[styles.offerPromoText, { color: theme.text }]}>
-                  Get ₹1000 OFF when you shop offline & pay via District app
-                </ThemedText>
-                <Pressable onPress={() => toast.info('Voucher details shared after order placement', 'District')}>
-                  <ThemedText style={styles.claimLink}>Claim voucher after order is placed</ThemedText>
-                </Pressable>
-              </View>
-              <View style={{ alignItems: 'center', gap: 4 }}>
-                <View style={styles.addedBadge}>
-                  <ThemedText style={styles.addedBadgeText}>ADDED ✓</ThemedText>
-                </View>
-                <ThemedText style={styles.freeText}>FREE</ThemedText>
-              </View>
-            </View>
-          </View>
-
           {/* Cart Items List */}
           <View style={[styles.itemsCard, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}>
             {cart.items.map((it) => {
@@ -421,8 +376,8 @@ export default function CartScreen() {
                 ]}
               >
                 <Ionicons name="document-text-outline" size={14} color={showNoteInput ? theme.primary : theme.textSecondary} />
-                <ThemedText style={[styles.actionCapsuleText, { color: theme.textSecondary }, showNoteInput && { color: theme.primary, fontFamily: 'PlusJakartaSans_700Bold' }]}>
-                  {note ? 'Edit note' : 'Add a note for the restaurant'}
+                <ThemedText style={[styles.actionCapsuleText, { color: theme.textSecondary }, showNoteInput && { color: theme.primary, fontFamily: 'PlusJakartaSans_700Bold' }]} numberOfLines={1}>
+                  {note ? 'Edit note' : 'Add note'}
                 </ThemedText>
               </Pressable>
 
@@ -440,8 +395,8 @@ export default function CartScreen() {
                 ]}
               >
                 <Ionicons name="restaurant-outline" size={14} color={noCutlery ? theme.primary : theme.textSecondary} />
-                <ThemedText style={[styles.actionCapsuleText, { color: theme.textSecondary }, noCutlery && { color: theme.primary, fontFamily: 'PlusJakartaSans_700Bold' }]}>
-                  {noCutlery ? "Don't send cutlery (Applied)" : 'Send cutlery'}
+                <ThemedText style={[styles.actionCapsuleText, { color: theme.textSecondary }, noCutlery && { color: theme.primary, fontFamily: 'PlusJakartaSans_700Bold' }]} numberOfLines={1}>
+                  {noCutlery ? 'No cutlery' : 'Send cutlery'}
                 </ThemedText>
               </Pressable>
             </ScrollView>
@@ -532,13 +487,15 @@ export default function CartScreen() {
               ) : (
                 <View style={{ flex: 1 }}>
                   <ThemedText style={[styles.couponCodeTitle, { color: theme.text }]}>
-                    Save ₹140 with &apos;GETOFF140ON299&apos;
+                    {suggestedCoupon
+                      ? `Try '${suggestedCoupon.couponCode}' — ${formatCouponDescription(suggestedCoupon)}`
+                      : 'Apply a coupon to save on this order'}
                   </ThemedText>
                   <Pressable
                     onPress={() =>
                       router.push({
                         pathname: '/restaurant/[restaurantId]',
-                        params: { restaurantId: restaurant?._id },
+                        params: { restaurantId: restaurantId || restaurant?._id },
                       })
                     }
                   >
@@ -938,7 +895,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 32,
+    height: 34,
+    maxWidth: 160,
     paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
@@ -949,6 +907,7 @@ const styles = StyleSheet.create({
     color: '#9fa2a7',
     fontSize: 11,
     fontFamily: 'PlusJakartaSans_600SemiBold',
+    flexShrink: 1,
   },
   noteInputContainer: {
     flexDirection: 'row',

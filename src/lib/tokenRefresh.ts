@@ -1,4 +1,4 @@
-import { API_URL } from '@/config/env';
+import { getApiUrl } from '@/config/env';
 import { getRefreshToken, setTokens } from '@/lib/storage';
 
 export async function refreshAccessToken(): Promise<string | null> {
@@ -6,7 +6,7 @@ export async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null;
 
   try {
-    const res = await fetch(`${API_URL}/auth/refresh-token`, {
+    const res = await fetch(`${getApiUrl()}/auth/refresh-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),

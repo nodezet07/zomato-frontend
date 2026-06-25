@@ -23,7 +23,7 @@ type ApiEnvelope = {
   data?: AuthPayload;
 };
 
-export type PostAuthRoute = '/(tabs)' | '/(onboarding)/location' | '/(onboarding)';
+export type PostAuthRoute = '/(tabs)' | '/(onboarding)/location';
 
 /** Persist tokens from verify-otp / login / register responses. */
 export async function saveAuthFromResponse(body: ApiEnvelope): Promise<PostAuthRoute> {
@@ -39,15 +39,16 @@ export async function saveAuthFromResponse(body: ApiEnvelope): Promise<PostAuthR
   return resolvePostAuthRoute();
 }
 
-/** Send users with saved addresses straight to home; others complete location once. */
+/** Logged-in users: home if they have an address; otherwise location setup only (no welcome carousel). */
 export async function resolvePostAuthRoute(): Promise<PostAuthRoute> {
   try {
     const profile = await fetchProfile();
-    if (profile.addresses.length > 0) return '/(tabs)';
+    const addresses = profile?.addresses ?? [];
+    if (addresses.length > 0 || profile?.onboardingCompleted) return '/(tabs)';
+    return '/(onboarding)/location';
   } catch {
-    // Profile may fail on flaky network; still allow onboarding.
+    return '/(onboarding)/location';
   }
-  return '/(onboarding)';
 }
 
 export async function loginWithEmailPassword(input: { email: string; password: string }) {
@@ -55,8 +56,8 @@ export async function loginWithEmailPassword(input: { email: string; password: s
     '/auth/login',
     { method: 'POST', body: JSON.stringify(input) },
   );
-  await saveAuthFromResponse(body);
-  return body.data!.user!;
+  const route = await saveAuthFromResponse(body);
+  return { user: body.data!.user!, route };
 }
 
 export async function registerWithEmailPassword(input: {
@@ -69,8 +70,8 @@ export async function registerWithEmailPassword(input: {
     '/auth/register',
     { method: 'POST', body: JSON.stringify({ ...input, role: 'CUSTOMER' }) },
   );
-  await saveAuthFromResponse(body);
-  return body.data!.user!;
+  const route = await saveAuthFromResponse(body);
+  return { user: body.data!.user!, route };
 }
 
 export async function logout() {

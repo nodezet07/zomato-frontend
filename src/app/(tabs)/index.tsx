@@ -5,7 +5,6 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  TextInput,
   View,
   Image,
   ScrollView,
@@ -36,6 +35,7 @@ import { FloatingCartBar } from '@/components/floating-cart-bar';
 import { getCartDisplayTotal, getCartItemCount, getCartRestaurantName } from '@/lib/cartDisplay';
 import { useTabBarHeight } from '@/hooks/use-tab-bar-height';
 import { useUnreadNotificationCount } from '@/hooks/use-unread-notifications';
+import { useRestaurantOfferBadges } from '@/hooks/use-restaurant-offers';
 
 const CATEGORIES = [
   { name: 'All', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&auto=format&fit=crop&q=80' },
@@ -70,12 +70,12 @@ interface RestaurantItemProps {
   item: Restaurant;
   index: number;
   theme: any;
+  offerBadge?: string | null;
   onPress: () => void;
 }
 
-const RestaurantItem = memo(({ item, index, theme, onPress }: RestaurantItemProps) => {
+const RestaurantItem = memo(({ item, index, theme, offerBadge, onPress }: RestaurantItemProps) => {
   const rating = Number(item.averageRating ?? 0);
-  const hasDiscount = index % 3 !== 2;
   const ratingColor = rating >= 4.0 ? '#24963F' : (rating >= 3.0 ? '#9ACD32' : '#8A8D91');
 
   const priceForTwo = (item.minimumOrderAmount && item.minimumOrderAmount > 0)
@@ -98,13 +98,11 @@ const RestaurantItem = memo(({ item, index, theme, onPress }: RestaurantItemProp
           <View style={styles.imageOverlay} />
 
           <View style={styles.badgeContainer}>
-            {hasDiscount && (
+            {offerBadge ? (
               <View style={[styles.promoBadge, { backgroundColor: theme.primary }]}>
-                <Text style={styles.promoBadgeText}>
-                  {index % 3 === 0 ? '50% OFF' : 'BUY 1 GET 1'}
-                </Text>
+                <Text style={styles.promoBadgeText}>{offerBadge}</Text>
               </View>
-            )}
+            ) : null}
             <View style={styles.glassBadge}>
               <Text style={styles.glassBadgeText}>Free Delivery</Text>
             </View>
@@ -216,6 +214,12 @@ export default function HomeScreen() {
   } = useFilterStore();
 
   const [recommendedItems, setRecommendedItems] = useState<Restaurant[]>([]);
+
+  const offerRestaurantIds = useMemo(
+    () => [...recommendedItems.map((r) => r._id), ...items.map((r) => r._id)],
+    [recommendedItems, items],
+  );
+  const offerBadges = useRestaurantOfferBadges(offerRestaurantIds);
 
   // Filters Modal State
   const [showFiltersModal, setShowFiltersModal] = useState(false);
@@ -339,11 +343,6 @@ export default function HomeScreen() {
         fetchedRestaurants = fetchedRestaurants.filter(r => !(r as any).packagingCharge || (r as any).packagingCharge === 0);
       }
 
-      // Apply client-side "Great Offers" logic
-      if (activeOffers) {
-        fetchedRestaurants = fetchedRestaurants.filter((_, idx) => idx % 3 !== 2);
-      }
-
       if (pageNumber === 1) {
         setItems(fetchedRestaurants);
       } else {
@@ -406,6 +405,7 @@ export default function HomeScreen() {
       item={item}
       index={index}
       theme={theme}
+      offerBadge={offerBadges[item._id] ?? null}
       onPress={() =>
         router.push({
           pathname: '/restaurant/[restaurantId]',
@@ -413,7 +413,7 @@ export default function HomeScreen() {
         })
       }
     />
-  ), [theme, router]);
+  ), [theme, router, offerBadges]);
 
   // Filters Modal Helper functions
   const openFiltersModal = () => {
@@ -454,7 +454,7 @@ export default function HomeScreen() {
         )}
 
         <FlatList
-          data={items}
+          data={activeOffers ? items.filter((r) => Boolean(offerBadges[r._id])) : items}
           keyExtractor={(r) => r._id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           onEndReached={onLoadMore}
@@ -735,9 +735,7 @@ export default function HomeScreen() {
                     {recommendedItems.map((item, index) => {
                       const rating = Number(item.averageRating ?? 0);
                       const ratingColor = rating >= 4.0 ? '#24963F' : (rating >= 3.0 ? '#9ACD32' : '#8A8D91');
-                      
-                      // Simulated discounts
-                      const discountText = index % 3 === 0 ? '₹60 OFF above ₹99' : (index % 3 === 1 ? '20% OFF up to ₹50' : '30% OFF up to ₹75');
+                      const discountText = offerBadges[item._id];
                       
                       return (
                         <Pressable
@@ -758,10 +756,11 @@ export default function HomeScreen() {
                           >
                             <View style={styles.imageOverlayRec} />
                             
-                            {/* Discount badge */}
-                            <View style={styles.recPromoBadge}>
-                              <Text style={styles.recPromoBadgeText}>{discountText}</Text>
-                            </View>
+                            {discountText ? (
+                              <View style={styles.recPromoBadge}>
+                                <Text style={styles.recPromoBadgeText}>{discountText}</Text>
+                              </View>
+                            ) : null}
 
                             {/* Rating badge */}
                             <View style={[styles.recRatingPill, { backgroundColor: ratingColor }]}>

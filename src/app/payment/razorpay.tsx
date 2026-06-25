@@ -48,6 +48,7 @@ export default function RazorpayPaymentScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [webHtml, setWebHtml] = useState<string | null>(null);
   const [WebView, setWebView] = useState<WebViewComponent | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const nativeAttempted = useRef(false);
 
   useEffect(() => {
@@ -60,6 +61,8 @@ export default function RazorpayPaymentScreen() {
   const goToSuccess = useCallback(async () => {
     await qc.invalidateQueries({ queryKey: ['cart'] });
     await qc.invalidateQueries({ queryKey: cartKeys.all });
+    await qc.invalidateQueries({ queryKey: ['orders'] });
+    await qc.invalidateQueries({ queryKey: ['orders', 'byId', orderId] });
     router.replace({
       pathname: '/order-success',
       params: { orderId, payment: 'ONLINE' },
@@ -190,7 +193,16 @@ export default function RazorpayPaymentScreen() {
     restaurantName,
     router,
     WebView,
+    retryCount,
   ]);
+
+  const retryPayment = useCallback(() => {
+    nativeAttempted.current = false;
+    setErrorMessage(null);
+    setWebHtml(null);
+    setPhase('loading');
+    setRetryCount((n) => n + 1);
+  }, []);
 
   const onWebMessage = useCallback(
     async (raw: string) => {
@@ -275,13 +287,27 @@ export default function RazorpayPaymentScreen() {
 
         {phase === 'error' && (
           <View style={styles.centered}>
-            <Ionicons name="alert-circle-outline" size={48} color={theme.primary} />
+            <Ionicons name="alert-circle-outline" size={48} color="#e23744" />
             <ThemedText style={[styles.status, { color: theme.text }]}>{statusLabel}</ThemedText>
+            <ThemedText style={[styles.errorHint, { color: theme.textSecondary }]}>
+              Your order is saved but payment was not completed. You can retry or go back to your orders.
+            </ThemedText>
             <Pressable
-              onPress={() => router.back()}
+              onPress={retryPayment}
               style={[styles.retryBtn, { backgroundColor: theme.primary }]}
             >
-              <ThemedText style={styles.retryText}>Go back</ThemedText>
+              <ThemedText style={styles.retryText}>Retry payment</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                router.replace({
+                  pathname: '/order/[orderId]',
+                  params: { orderId },
+                })
+              }
+              style={[styles.secondaryBtn, { borderColor: theme.backgroundSelected }]}
+            >
+              <ThemedText style={[styles.secondaryBtnText, { color: theme.text }]}>View order</ThemedText>
             </Pressable>
           </View>
         )}
@@ -322,12 +348,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
   },
   status: { textAlign: 'center', fontSize: 15, lineHeight: 22 },
+  errorHint: { textAlign: 'center', fontSize: 13, lineHeight: 19, marginTop: -4 },
   webview: { flex: 1 },
   retryBtn: {
     marginTop: Spacing.two,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
     borderRadius: 10,
+    minWidth: 200,
+    alignItems: 'center',
   },
   retryText: { color: '#fff', fontFamily: 'PlusJakartaSans_700Bold' },
+  secondaryBtn: {
+    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+    borderRadius: 10,
+    borderWidth: 1,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  secondaryBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14 },
 });

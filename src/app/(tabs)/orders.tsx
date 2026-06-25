@@ -9,6 +9,12 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTabBarHeight } from '@/hooks/use-tab-bar-height';
 import { useOrderHistoryQuery } from '@/hooks/queries/orders';
+import {
+  canTrackOrder,
+  getPaymentStatusDisplay,
+  isPaymentFailed,
+  needsOnlinePayment,
+} from '@/lib/orderPayment';
 import type { Order } from '@/services/orders';
 
 function formatDate(dateStr?: string) {
@@ -104,16 +110,32 @@ export default function OrdersScreen() {
           renderItem={({ item }) => {
             const statusConfig = getStatusConfig(item.orderStatus);
             const isOrderActive = isActiveOrder(item.orderStatus);
+            const paymentInfo = getPaymentStatusDisplay(item);
+            const unpaidOnline = needsOnlinePayment(item);
+            const paymentFailed = isPaymentFailed(item);
+            const showTrack = isOrderActive && canTrackOrder(item);
             const itemsList = item.orderItems?.map((it) => `${it.quantity} x ${it.itemName}`).join(', ') || '';
+
+            const openOrder = () =>
+              router.push({
+                pathname: '/order/[orderId]',
+                params: { orderId: item._id },
+              });
+
+            const payOrRetry = (e?: { stopPropagation?: () => void }) => {
+              e?.stopPropagation?.();
+              router.push({
+                pathname: '/payment/razorpay',
+                params: {
+                  orderId: item._id,
+                  restaurantName: item.restaurantId?.restaurantName ?? '',
+                },
+              });
+            };
 
             return (
               <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/order/[orderId]',
-                    params: { orderId: item._id },
-                  })
-                }
+                onPress={openOrder}
                 style={({ pressed }) => [
                   styles.cardWrapper,
                   pressed && { opacity: 0.95 },
@@ -139,14 +161,49 @@ export default function OrdersScreen() {
                         </ThemedText>
                       </View>
                     </View>
-                    <View style={styles.restaurantRight}>
-                      <View style={[styles.statusBadge, { backgroundColor: `${statusConfig.color}15` }]}>
-                        <Ionicons name={statusConfig.icon} size={10} color={statusConfig.color} style={{ marginRight: 4 }} />
-                        <ThemedText style={[styles.statusText, { color: statusConfig.color }]}>
-                          {statusConfig.label}
-                        </ThemedText>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+                    <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
+                  </View>
+
+                  {/* Status chips */}
+                  <View style={styles.chipRow}>
+                    <View style={[styles.statusBadge, { backgroundColor: `${statusConfig.color}15` }]}>
+                      <Ionicons name={statusConfig.icon} size={10} color={statusConfig.color} style={{ marginRight: 4 }} />
+                      <ThemedText style={[styles.statusText, { color: statusConfig.color }]}>
+                        {statusConfig.label}
+                      </ThemedText>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        {
+                          backgroundColor:
+                            paymentInfo.tone === 'failed'
+                              ? 'rgba(226,55,68,0.12)'
+                              : paymentInfo.tone === 'pending'
+                                ? 'rgba(245,158,11,0.12)'
+                                : paymentInfo.tone === 'paid'
+                                  ? 'rgba(15,138,95,0.12)'
+                                  : theme.backgroundSelected,
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.statusText,
+                          {
+                            color:
+                              paymentInfo.tone === 'failed'
+                                ? '#e23744'
+                                : paymentInfo.tone === 'pending'
+                                  ? '#f59e0b'
+                                  : paymentInfo.tone === 'paid'
+                                    ? '#0f8a5f'
+                                    : theme.textSecondary,
+                          },
+                        ]}
+                      >
+                        {paymentInfo.label}
+                      </ThemedText>
                     </View>
                   </View>
 
@@ -162,23 +219,60 @@ export default function OrdersScreen() {
                     </ThemedText>
                   </View>
 
-                  {/* Quick Action footer */}
-                  {isOrderActive && (
+                  {/* Quick actions */}
+                  {(unpaidOnline || showTrack) && (
                     <View style={styles.footerActionRow}>
-                      <Pressable
-                        onPress={() =>
-                          router.push({
-                            pathname: '/order/track/[orderId]',
-                            params: { orderId: item._id },
-                          })
-                        }
-                        style={[styles.actionBtn, { backgroundColor: theme.primarySoft, borderColor: theme.primary }]}
-                      >
-                        <Ionicons name="bicycle-outline" size={14} color={theme.primary} />
-                        <ThemedText style={[styles.actionBtnText, { color: theme.primary }]}>
-                          Track Order (Live)
-                        </ThemedText>
-                      </Pressable>
+                      {unpaidOnline && (
+                        <Pressable
+                          onPress={payOrRetry}
+                          style={[
+                            styles.actionBtn,
+                            {
+                              backgroundColor: paymentFailed ? 'rgba(226,55,68,0.1)' : theme.primarySoft,
+                              borderColor: paymentFailed ? '#e23744' : theme.primary,
+                              flex: showTrack ? 1 : undefined,
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="card-outline"
+                            size={14}
+                            color={paymentFailed ? '#e23744' : theme.primary}
+                          />
+                          <ThemedText
+                            style={[
+                              styles.actionBtnText,
+                              { color: paymentFailed ? '#e23744' : theme.primary },
+                            ]}
+                          >
+                            {paymentFailed ? 'Retry payment' : 'Pay now'}
+                          </ThemedText>
+                        </Pressable>
+                      )}
+                      {showTrack && (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            router.push({
+                              pathname: '/order/track/[orderId]',
+                              params: { orderId: item._id },
+                            });
+                          }}
+                          style={[
+                            styles.actionBtn,
+                            {
+                              backgroundColor: theme.primarySoft,
+                              borderColor: theme.primary,
+                              flex: unpaidOnline ? 1 : undefined,
+                            },
+                          ]}
+                        >
+                          <Ionicons name="bicycle-outline" size={14} color={theme.primary} />
+                          <ThemedText style={[styles.actionBtnText, { color: theme.primary }]}>
+                            Track live
+                          </ThemedText>
+                        </Pressable>
+                      )}
                     </View>
                   )}
                 </ThemedView>
@@ -268,6 +362,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -302,7 +402,7 @@ const styles = StyleSheet.create({
   footerActionRow: {
     marginTop: 12,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    gap: 8,
   },
   actionBtn: {
     flexDirection: 'row',

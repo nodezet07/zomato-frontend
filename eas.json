@@ -9,9 +9,18 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://zomato-backend-pt66.onrender.com/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "https://zomato-backend-pt66.onrender.com"
+      }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://zomato-backend-pt66.onrender.com/api/v1",
+        "EXPO_PUBLIC_SOCKET_URL": "https://zomato-backend-pt66.onrender.com"
+      }
+    }
   },
   "submit": {
     "production": {}

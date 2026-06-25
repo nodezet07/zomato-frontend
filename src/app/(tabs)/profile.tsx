@@ -16,7 +16,6 @@ import { TabScrollView } from '@/components/tab-scroll-view';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { logout } from '@/lib/auth';
 import {
@@ -57,7 +56,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await logout();
-          router.replace('/(auth)');
+          router.replace('/(onboarding)');
         },
       },
     ]);
@@ -77,7 +76,7 @@ export default function ProfileScreen() {
               setBusy(true);
               await delAcc.mutateAsync();
               await logout();
-              router.replace('/(auth)');
+              router.replace('/(onboarding)');
             } catch (err: any) {
               Alert.alert('Error', err?.message ?? 'Failed to delete account');
             } finally {
@@ -132,17 +131,7 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* QuickBite Gold Badge */}
-            <SafeGradient
-              colors={['#ff5a00', '#ff0055']}
-              style={styles.goldBadge}
-            >
-              <Ionicons name="sparkles" size={12} color="#ffffff" />
-              <ThemedText style={styles.goldBadgeText}>QuickBite Gold Member</ThemedText>
-            </SafeGradient>
-          </SafeGradient>
-
-          {/* Quick actions */}
+            {/* Quick actions */}
           <View style={[styles.balanceCard, { backgroundColor: theme.backgroundElement }]}>
             {V1_WALLET_ENABLED ? (
               <>
@@ -187,6 +176,7 @@ export default function ProfileScreen() {
               </>
             ) : null}
           </View>
+          </SafeGradient>
 
           {/* Addresses Accordion */}
           <View style={[styles.sectionCard, { backgroundColor: theme.backgroundElement }]}>
@@ -288,7 +278,7 @@ export default function ProfileScreen() {
                                 onPress: async () => {
                                   try {
                                     await del.mutateAsync(a._id);
-                                  } catch (err) {
+                                  } catch {
                                     // ignore or log
                                   } finally {
                                     setBusy(false);

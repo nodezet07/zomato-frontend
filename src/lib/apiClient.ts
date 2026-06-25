@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-import { API_URL } from '@/config/env';
+import { getApiUrl } from '@/config/env';
 import { refreshAccessToken } from '@/lib/tokenRefresh';
 import { clearTokens, getAccessToken } from '@/lib/storage';
 
@@ -11,7 +11,6 @@ type RetryConfig = InternalAxiosRequestConfig & {
 
 // eslint-disable-next-line import/no-named-as-default-member
 export const api: AxiosInstance = axios.create({
-  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,6 +27,7 @@ function isAuthEndpoint(url?: string): boolean {
 api.interceptors.request.use(
   async (config) => {
     const retryConfig = config as RetryConfig;
+    config.baseURL = getApiUrl();
     const token = await getAccessToken();
     if (__DEV__) {
       console.log(`🌐 [API] ${String(config.method).toUpperCase()} ${config.baseURL ?? ''}${config.url ?? ''}`);

@@ -23,13 +23,13 @@ export default function RegisterScreen() {
     try {
       setBusy(true);
       setError(null);
-      await registerWithEmailPassword({
+      const { route } = await registerWithEmailPassword({
         fullName: fullName.trim(),
         email: email.trim(),
         mobile: mobile.trim() || undefined,
         password,
       });
-      router.replace('/');
+      router.replace(route);
     } catch (e: any) {
       setError(e?.message ?? 'Registration failed');
     } finally {

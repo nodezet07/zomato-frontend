@@ -12,12 +12,14 @@ import { Platform } from 'react-native';
 
 const isProduction = !__DEV__;
 
-const PRODUCTION_API_URL = 'https://example.com/api/v1';
-const PRODUCTION_SOCKET_URL = 'https://example.com';
+const PRODUCTION_API_URL = 'https://zomato-backend-pt66.onrender.com/api/v1';
+const PRODUCTION_SOCKET_URL = 'https://zomato-backend-pt66.onrender.com';
 
 const DEFAULT_BACKEND_PORT = 5000;
-const FALLBACK_LAN_HOST = '192.168.1.101';
-const ANDROID_EMULATOR_HOST = '10.0.2.2';
+const FALLBACK_LAN_HOST = '192.168.1.100';
+/** 127.0.0.1 works with `adb reverse tcp:5000 tcp:5000`; LAN IP works on Windows emulator without adb */
+const ANDROID_EMULATOR_HOST =
+  process.env.EXPO_PUBLIC_ANDROID_API_HOST?.trim() || FALLBACK_LAN_HOST;
 
 function isAndroidEmulator(): boolean {
   if (Platform.OS !== 'android') return false;
@@ -65,6 +67,9 @@ function resolveDevHostFromExpo(): string | null {
 }
 
 function getDevApiUrl(): string {
+  if (Platform.OS === 'web') {
+    return `http://localhost:${DEFAULT_BACKEND_PORT}/api/v1`;
+  }
   if (Platform.OS === 'android' && isAndroidEmulator()) {
     return `http://${ANDROID_EMULATOR_HOST}:${DEFAULT_BACKEND_PORT}/api/v1`;
   }
@@ -78,6 +83,9 @@ function getDevApiUrl(): string {
 }
 
 function getDevSocketUrl(): string {
+  if (Platform.OS === 'web') {
+    return `http://localhost:${DEFAULT_BACKEND_PORT}`;
+  }
   if (Platform.OS === 'android' && isAndroidEmulator()) {
     return `http://${ANDROID_EMULATOR_HOST}:${DEFAULT_BACKEND_PORT}`;
   }

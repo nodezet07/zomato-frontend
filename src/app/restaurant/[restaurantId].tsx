@@ -1,20 +1,18 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
-  Alert,
   TextInput,
   Image,
   Modal,
   Platform,
   Clipboard,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,7 +21,7 @@ import { Spacing } from '@/constants/theme';
 import { type MenuItem, type ComboItem } from '@/services/menu';
 import { type Coupon } from '@/services/coupons';
 import { useTheme } from '@/hooks/use-theme';
-import { cartKeys, useAddToCartMutation } from '@/hooks/queries/cart';
+import { useAddToCartMutation } from '@/hooks/queries/cart';
 import { useMenuByRestaurantQuery, useCombosByRestaurantQuery } from '@/hooks/queries/menu';
 import { useRestaurantByIdQuery } from '@/hooks/queries/restaurants';
 import { useCouponsByRestaurantQuery } from '@/hooks/queries/coupons';
@@ -74,11 +72,51 @@ function FoodTypeBadge({ type }: { type?: string }) {
   return null;
 }
 
+function MenuItemAddColumn({
+  item,
+  onPress,
+  busy,
+}: {
+  item: MenuItem;
+  onPress: () => void;
+  busy?: boolean;
+}) {
+  const hasAddons = Boolean(item.addons?.length);
+
+  return (
+    <View style={styles.itemRight}>
+      {item.images?.[0] ? (
+        <Image source={{ uri: item.images[0] }} style={styles.dishImage} resizeMode="cover" />
+      ) : (
+        <View style={styles.noPhotoImage}>
+          <Ionicons name="fast-food-outline" size={32} color="#cccccc" />
+        </View>
+      )}
+      <View style={styles.addBlock}>
+        <Pressable
+          onPress={onPress}
+          style={[styles.addBtn, busy && { opacity: 0.65 }]}
+          disabled={busy}
+          hitSlop={8}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color="#ff5a00" />
+          ) : (
+            <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
+          )}
+        </Pressable>
+        {hasAddons ? (
+          <ThemedText style={styles.customisableText}>Customisable</ThemedText>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export default function RestaurantDetailScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const qc = useQueryClient();
   const add = useAddToCartMutation();
   const { restaurantId } = useLocalSearchParams<{ restaurantId: string }>();
 
@@ -91,8 +129,8 @@ export default function RestaurantDetailScreen() {
   const couponsQ = useCouponsByRestaurantQuery(rid);
   const busy = restaurantQ.isLoading || menuQ.isLoading || combosQ.isLoading;
   const restaurant: any = restaurantQ.data ?? null;
-  const items: MenuItem[] = (menuQ.data ?? []) as MenuItem[];
-  const combosData: ComboItem[] = (combosQ.data ?? []) as ComboItem[];
+  const items = useMemo(() => (menuQ.data ?? []) as MenuItem[], [menuQ.data]);
+  const combosData = useMemo(() => (combosQ.data ?? []) as ComboItem[], [combosQ.data]);
   const coupons: Coupon[] = (couponsQ.data?.coupons ?? []) as Coupon[];
   const couponCount: number = couponsQ.data?.count ?? 0;
   const error = (restaurantQ.error as any)?.message ?? (menuQ.error as any)?.message ?? (combosQ.error as any)?.message ?? null;
@@ -117,12 +155,7 @@ export default function RestaurantDetailScreen() {
   const [selectedAddons, setSelectedAddons] = useState<Record<string, boolean>>({});
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
-
-  const hero = useMemo(() => {
-    const fromApi = restaurant?.bannerImages?.[0] || restaurant?.logo;
-    if (typeof fromApi === 'string' && fromApi.length > 0) return { uri: fromApi };
-    return { uri: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80' };
-  }, [restaurant]);
+  const [addingItemId, setAddingItemId] = useState<string | null>(null);
 
   // In-memory Filter Logic
   const filteredItems = useMemo(() => {
@@ -185,18 +218,20 @@ export default function RestaurantDetailScreen() {
   }, [filteredItems]);
 
   const handleAddToCart = async (item: MenuItem) => {
-    if (!item._id || !rid) return;
+    if (!item._id || !rid || addingItemId) return;
+    setAddingItemId(String(item._id));
     try {
       await add.mutateAsync({
         restaurantId: String(rid),
         menuItemId: String(item._id),
         quantity: 1,
       });
-      await qc.invalidateQueries({ queryKey: cartKeys.all });
       toast.success(`${item.itemName} added to cart`, 'Added');
     } catch (e: any) {
       const msg = e?.message ?? 'Failed to add item to cart';
       toast.error(String(msg));
+    } finally {
+      setAddingItemId(null);
     }
   };
 
@@ -223,7 +258,7 @@ export default function RestaurantDetailScreen() {
   const handleAddCustomizedToCart = async () => {
     if (!customizingItem || !rid) return;
     try {
-      const addonsPayload: Array<{ name: string; price: number }> = [];
+      const addonsPayload: { name: string; price: number }[] = [];
 
       if (selectedSize) {
         const matched = customizingItem.addons?.find((ad: any) => ad.name === selectedSize);
@@ -253,7 +288,6 @@ export default function RestaurantDetailScreen() {
         quantity,
         addons: addonsPayload,
       });
-      await qc.invalidateQueries({ queryKey: cartKeys.all });
       setCustomizingItem(null);
       toast.success(`${customizingItem.itemName} added to cart`, 'Added');
     } catch (e: any) {
@@ -578,28 +612,11 @@ export default function RestaurantDetailScreen() {
                                 </View>
                               </View>
 
-                              {/* Right Photo & ADD button */}
-                              <View style={styles.itemRight}>
-                                {it.images && it.images[0] ? (
-                                  <Image
-                                    source={{ uri: it.images[0] }}
-                                    style={styles.dishImage}
-                                    resizeMode="cover"
-                                  />
-                                ) : (
-                                  <View style={styles.noPhotoImage}>
-                                    <Ionicons name="fast-food-outline" size={32} color="#cccccc" />
-                                  </View>
-                                )}
-
-                                <Pressable
-                                  onPress={() => handleAddClick(it)}
-                                  style={styles.addBtn}
-                                  hitSlop={8}
-                                >
-                                  <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
-                                </Pressable>
-                              </View>
+                              <MenuItemAddColumn
+                                item={it}
+                                onPress={() => handleAddClick(it)}
+                                busy={addingItemId === it._id}
+                              />
                             </View>
                           ))}
                         </View>
@@ -729,32 +746,11 @@ export default function RestaurantDetailScreen() {
                                 </View>
                               </View>
 
-                              {/* Right Photo & ADD button */}
-                              <View style={styles.itemRight}>
-                                {it.images && it.images[0] ? (
-                                  <Image
-                                    source={{ uri: it.images[0] }}
-                                    style={styles.dishImage}
-                                    resizeMode="cover"
-                                  />
-                                ) : (
-                                  <View style={styles.noPhotoImage}>
-                                    <Ionicons name="fast-food-outline" size={32} color="#cccccc" />
-                                  </View>
-                                )}
-
-                                <Pressable
-                                  onPress={() => handleAddClick(it)}
-                                  style={styles.addBtn}
-                                  hitSlop={8}
-                                >
-                                  <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
-                                </Pressable>
-
-                                {it.addons && it.addons.length > 0 && (
-                                  <ThemedText style={styles.customisableText}>customisable</ThemedText>
-                                )}
-                              </View>
+                              <MenuItemAddColumn
+                                item={it}
+                                onPress={() => handleAddClick(it)}
+                                busy={addingItemId === it._id}
+                              />
                             </View>
                           ))}
                         </View>
@@ -833,32 +829,11 @@ export default function RestaurantDetailScreen() {
                                     </View>
                                   </View>
 
-                                  {/* Right Photo & ADD button */}
-                                  <View style={styles.itemRight}>
-                                    {it.images && it.images[0] ? (
-                                      <Image
-                                        source={{ uri: it.images[0] }}
-                                        style={styles.dishImage}
-                                        resizeMode="cover"
-                                      />
-                                    ) : (
-                                      <View style={styles.noPhotoImage}>
-                                        <Ionicons name="fast-food-outline" size={32} color="#cccccc" />
-                                      </View>
-                                    )}
-
-                                    <Pressable
-                                      onPress={() => handleAddClick(it)}
-                                      style={styles.addBtn}
-                                      hitSlop={8}
-                                    >
-                                      <ThemedText style={styles.addBtnText}>ADD +</ThemedText>
-                                    </Pressable>
-
-                                    {it.addons && it.addons.length > 0 && (
-                                      <ThemedText style={styles.customisableText}>customisable</ThemedText>
-                                    )}
-                                  </View>
+                                  <MenuItemAddColumn
+                                    item={it}
+                                    onPress={() => handleAddClick(it)}
+                                    busy={addingItemId === it._id}
+                                  />
                                 </View>
                               ))}
                             </View>
@@ -1348,38 +1323,37 @@ const styles = StyleSheet.create({
     color: '#586062',
   },
   itemRight: {
-    width: 110,
+    width: 112,
     alignItems: 'center',
-    position: 'relative',
-    paddingBottom: 28,
-    overflow: 'visible',
+  },
+  addBlock: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: -14,
+    paddingBottom: 2,
   },
   dishImage: {
-    width: 100,
-    height: 100,
+    width: 104,
+    height: 104,
     borderRadius: 12,
   },
   noPhotoImage: {
-    width: 100,
-    height: 100,
+    width: 104,
+    height: 104,
     borderRadius: 12,
     backgroundColor: '#f3f3f3',
     alignItems: 'center',
     justifyContent: 'center',
   },
   addBtn: {
-    position: 'absolute',
-    bottom: 12,
-    alignSelf: 'center',
-    width: 80,
-    height: 32,
+    width: 84,
+    height: 34,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ff5a00',
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1392,11 +1366,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   customisableText: {
-    position: 'absolute',
-    bottom: 0,
-    fontSize: 9,
+    marginTop: 5,
+    fontSize: 10,
+    lineHeight: 13,
     fontFamily: 'PlusJakartaSans_600SemiBold',
     color: '#ff5a00',
+    textAlign: 'center',
   },
   badgeContainer: {
     width: 15,

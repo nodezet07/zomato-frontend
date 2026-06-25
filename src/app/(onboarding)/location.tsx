@@ -12,12 +12,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ThemedView } from '@/components/themed-view';
 import { addAddress } from '@/services/users';
 import { useTheme } from '@/hooks/use-theme';
 import { ensureForegroundPermission, getCurrentCoords, reverseGeocode } from '@/lib/location';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getAccessToken } from '@/lib/storage';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { profileKeys, useProfileQuery } from '@/hooks/queries/profile';
 
 type SavedAddress = { id: string; label: string; fullAddress: string };
@@ -25,6 +28,7 @@ type SavedAddress = { id: string; label: string; fullAddress: string };
 export default function LocationSetupScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const profileQ = useProfileQuery();
 
@@ -60,6 +64,18 @@ export default function LocationSetupScreen() {
   }, [profileQ.data?.addresses]);
 
   // Keep label user-driven only (no effect-driven setState).
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const token = await getAccessToken();
+      if (!alive) return;
+      if (!token) router.replace('/(auth)/login');
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     setPermissionChecked(true);
@@ -136,9 +152,9 @@ export default function LocationSetupScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       {/* Transparent Header Section */}
-      <View style={styles.header}>
+      <View style={[styles.header, { top: Math.max(insets.top, Platform.OS === 'ios' ? 8 : 12) }]}>
         <Pressable
           onPress={() => router.back()}
           style={[styles.backButton, { backgroundColor: theme.backgroundElement }]}
@@ -188,6 +204,7 @@ export default function LocationSetupScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          style={styles.sheetScroll}
         >
           {/* Heading */}
           <View style={styles.heading}>
@@ -201,9 +218,7 @@ export default function LocationSetupScreen() {
 
           {/* Search Bar */}
           <View style={[styles.searchWrap, { backgroundColor: theme.backgroundSelected }]}>
-            <View style={styles.searchIconContainer}>
-              <Text style={[styles.searchEmoji, { color: theme.textSecondary }]}>🔎</Text>
-            </View>
+            <Ionicons name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
             <TextInput
               value={fullAddress}
               onChangeText={(t) => {
@@ -213,17 +228,18 @@ export default function LocationSetupScreen() {
               placeholder="Search your area..."
               placeholderTextColor={theme.textSecondary}
               style={[styles.input, { color: theme.text }]}
+              multiline={false}
+              numberOfLines={1}
             />
           </View>
 
           {/* Quick Select Chips */}
-          <View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipsRow}
-              style={{ maxHeight: 50, marginBottom: 24 }}
-            >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}
+            style={styles.chipsScroll}
+          >
               <Pressable
                 disabled={locBusy || !permissionChecked}
                 onPress={useCurrentLocation}
@@ -280,8 +296,7 @@ export default function LocationSetupScreen() {
                   💼 Work
                 </Text>
               </Pressable>
-            </ScrollView>
-          </View>
+          </ScrollView>
 
           {/* Recent Addresses List */}
           <View style={styles.recents}>
@@ -321,7 +336,7 @@ export default function LocationSetupScreen() {
         </ScrollView>
 
         {/* Footer / Confirm Location Button */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
           <Pressable
             disabled={busy || !fullAddress.trim()}
             onPress={onConfirm}
@@ -337,7 +352,7 @@ export default function LocationSetupScreen() {
           </Pressable>
         </View>
       </ThemedView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -347,7 +362,6 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 56 : 44,
     left: 16,
     right: 16,
     zIndex: 20,
@@ -439,6 +453,10 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: -10 },
     elevation: 8,
+    overflow: 'hidden',
+  },
+  sheetScroll: {
+    flex: 1,
   },
   handle: {
     alignSelf: 'center',
@@ -449,8 +467,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   heading: {
     marginBottom: 20,
@@ -472,31 +490,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(127,127,127,0.15)',
     borderRadius: 14,
-    height: 54,
-    paddingHorizontal: 16,
-    marginBottom: 20,
+    minHeight: 52,
+    paddingHorizontal: 14,
+    marginBottom: 16,
   },
-  searchEmoji: { fontSize: 16, opacity: 0.8 },
-  searchIconContainer: {
-    marginRight: 12,
+  searchIcon: {
+    marginRight: 10,
+    flexShrink: 0,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    minWidth: 0,
+    fontSize: 15,
     fontFamily: 'PlusJakartaSans_500Medium',
-    height: '100%',
+    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
+  },
+  chipsScroll: {
+    marginBottom: 20,
+    flexGrow: 0,
   },
   chipsRow: {
     flexDirection: 'row',
     gap: 10,
-    paddingRight: 24,
+    paddingRight: 20,
   },
   chip: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
     backgroundColor: '#ffffff',
+    flexShrink: 0,
   },
   chipText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
@@ -549,11 +573,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(127,127,127,0.08)',
+    backgroundColor: '#ffffff',
   },
   primaryBtn: {
     height: 54,
